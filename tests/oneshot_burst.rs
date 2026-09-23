@@ -47,6 +47,25 @@ fn one_burst_then_cache_served() {
     std::env::set_var("XDG_CACHE_HOME", tmp.path().join("cache"));
     std::env::set_var("XDG_CONFIG_HOME", tmp.path().join("config"));
     std::env::set_var("RUNWAYBAR_TEST_ALLOW_HTTP", "1");
+    // Full env isolation: private runtime dir (socket/lock), no inherited provider keys.
+    let runtime_dir = std::env::temp_dir().join(format!("rwb-test-{}", std::process::id()));
+    std::env::set_var("XDG_RUNTIME_DIR", runtime_dir);
+    for var in [
+        "Z_AI_API_KEY",
+        "BIGMODEL_API_KEY",
+        "ZHIPU_API_KEY",
+        "ZHIPUAI_API_KEY",
+        "GLM_API_KEY",
+        "OPENCODE_API_KEY",
+        "CODEX_HOME",
+        "CODEX_USAGE_ENDPOINT",
+        "CLAUDE_USAGE_ENDPOINT",
+        "Z_AI_QUOTA_ENDPOINT",
+        "Z_AI_QUOTA_CN_ENDPOINT",
+        "OPENCODE_USAGE_ENDPOINT",
+    ] {
+        std::env::remove_var(var);
+    }
 
     let server = MockServer::start(vec![
         ("/claude".into(), 200, claude_body()),

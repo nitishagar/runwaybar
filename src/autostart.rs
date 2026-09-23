@@ -34,6 +34,11 @@ pub fn install() -> Result<PathBuf, String> {
         let mut f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
         f.write_all(body.as_bytes()).map_err(|e| e.to_string())?;
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o644)).map_err(|e| e.to_string())?;
+    }
     fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     Ok(path)
 }
@@ -44,26 +49,5 @@ pub fn uninstall() -> Result<PathBuf, String> {
         Ok(()) => Ok(path),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(path),
         Err(e) => Err(e.to_string()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn desktop_body_wellformed_and_atomic() {
-        // Exercise against a tempdir by overriding the config dir resolution.
-        // (autostart_path uses dirs::config_dir; in tests we validate the file content
-        // through the real function only when XDG_CONFIG_HOME points somewhere isolated.)
-        let tmp = tempfile::tempdir().unwrap();
-        // dirs respects XDG_CONFIG_HOME on Linux when set before first use in-process;
-        // to stay race-free we instead validate format via a direct build check.
-        let body = format!(
-            "[Desktop Entry]\nType=Application\nName=RunwayBar\nExec={} serve\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
-            "/usr/bin/runwaybar"
-        );
-        assert!(body.contains("[Desktop Entry]"));
-        assert!(body.contains("Exec=/usr/bin/runwaybar serve"));
-        let _ = tmp; // silence unused when assertions move
     }
 }

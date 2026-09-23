@@ -73,17 +73,45 @@ pub fn socket_path() -> Option<PathBuf> {
 /// malformed reply; callers fall back to the cache/one-shot path.
 pub fn try_request_status() -> Option<Snapshot> {
     let path = socket_path()?;
-    let mut stream = UnixStream::connect(&path).ok()?;
-    stream.set_read_timeout(Some(CLIENT_TIMEOUT)).ok()?;
-    stream.set_write_timeout(Some(CLIENT_TIMEOUT)).ok()?;
-    writeln!(stream, r#"{{"cmd":"status"}}"#).ok()?;
+    request_status_at(&path)
+}
+
+/// Testable core: status request against an explicit socket path.
+pub fn request_status_at(path: &std::path::Path) -> Option<Snapshot> {
+    request_at(path, r#"{"cmd":"status"}"#)
+        .and_then(|reply| serde_json::from_str(reply.trim()).ok())
+}
+
+fn request_at(path: &std::path::Path, payload: &str) -> Option<String> {
+    let mut stream = match UnixStream::connect(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("DBG-connect: {e}");
+            return None;
+        }
+    };
+    if let Err(e) = stream.set_read_timeout(Some(CLIENT_TIMEOUT)) {
+        eprintln!("DBG-rto: {e}");
+        return None;
+    }
+    if let Err(e) = stream.set_write_timeout(Some(CLIENT_TIMEOUT)) {
+        eprintln!("DBG-wto: {e}");
+        return None;
+    }
+    if let Err(e) = writeln!(stream, "{payload}") {
+        eprintln!("DBG-write: {e}");
+        return None;
+    }
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
-    reader.read_line(&mut line).ok()?;
+    if let Err(e) = reader.read_line(&mut line) {
+        eprintln!("DBG-read: {e}");
+        return None;
+    }
     if line.len() > MAX_REPLY_BYTES {
         return None;
     }
-    serde_json::from_str(line.trim()).ok()
+    Some(line)
 }
 
 /// Client: poke the daemon to refresh now. True if the daemon acked.
@@ -91,20 +119,18 @@ pub fn request_refresh() -> bool {
     let Some(path) = socket_path() else {
         return false;
     };
-    let Ok(mut stream) = UnixStream::connect(&path) else {
-        return false;
-    };
-    let _ = stream.set_read_timeout(Some(CLIENT_TIMEOUT));
-    let _ = stream.set_write_timeout(Some(CLIENT_TIMEOUT));
-    if writeln!(stream, r#"{{"cmd":"refresh"}}"#).is_err() {
-        return false;
-    }
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    if reader.read_line(&mut line).is_err() {
-        return false;
-    }
-    line.trim() == r#"{"ok":true}"#
+    request_refresh_at(&path)
+}
+
+/// Testable core: refresh request against an explicit socket path. The reply is
+/// line-delimited JSON, so it must be trimmed before comparison.
+pub fn request_refresh_at(path: &std::path::Path) -> bool {
+    matches!(
+        request_at(path, r#"{"cmd":"refresh"}"#)
+            .as_deref()
+            .map(str::trim),
+        Some(r#"{"ok":true}"#)
+    )
 }
 
 /// Server half: line-JSON `{"cmd":"status"}` / `{"cmd":"refresh"}` on a same-user
@@ -119,6 +145,16 @@ pub fn serve_loop(
         eprintln!("runwaybar: no runtime dir for IPC; `status` will use the one-shot path");
         return;
     };
+    serve_at(path, state, refresh, shutdown);
+}
+
+/// Testable core: serve on an explicit socket path.
+pub fn serve_at(
+    path: PathBuf,
+    state: Arc<Mutex<HubState>>,
+    refresh: Arc<(Mutex<bool>, Condvar)>,
+    shutdown: Arc<AtomicBool>,
+) {
     let _ = std::fs::remove_file(&path); // stale socket from a crash
     let listener = match UnixListener::bind(&path) {
         Ok(l) => l,

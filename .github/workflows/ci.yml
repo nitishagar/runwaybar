@@ -92,6 +92,14 @@ jobs:
           ! grep -qiE "^Name=.*(Claude|Codex|Anthropic|OpenAI)" packaging/in.applair.RunwayBar.desktop
           if [ -f site/index.html ]; then ! grep -qiE "<title>.*(Claude|Codex|Anthropic|OpenAI)" site/index.html; fi
 
+  e2e-daemon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: scripts/e2e-daemon.sh
+
   readonly-credentials:
     runs-on: ubuntu-latest
     steps:

@@ -25,7 +25,10 @@ pub fn write_last_good(snapshot: &Snapshot) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
-    let tmp = path.with_extension(format!("json.tmp.{}", std::process::id()));
+    // Unique per writer: pid (cross-process) + counter (cross-thread within a process).
+    static WRITE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = WRITE_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.tmp.{}.{}", std::process::id(), seq));
     {
         let mut f = fs::OpenOptions::new()
             .create(true)
