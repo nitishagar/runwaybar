@@ -65,6 +65,14 @@ impl Provider for ClaudeCode {
         })?;
         let windows = parse_windows(&body);
         if windows.is_empty() {
+            // Diagnostic aid for the documented smoke command: raw usage body head
+            // (vendor-generated usage numbers — never credential material).
+            if std::env::var("RUNWAYBAR_LIVE_SMOKE").ok().as_deref() == Some("1") {
+                eprintln!(
+                    "runwaybar smoke: raw usage response head: {}",
+                    resp.body.chars().take(1200).collect::<String>()
+                );
+            }
             return Err(ProviderError::new(
                 ErrorClass::ParseFailure,
                 "no recognisable windows in usage response",
@@ -97,7 +105,12 @@ pub fn discover_token(home: &std::path::Path) -> Option<SecretString> {
     }
 }
 
-/// Accepts the documented `usage` array shape and a flat map shape; unknown keys ignored.
+/// Percent-bearing field names observed across endpoint generations.
+const FIRST_F64_KEYS: [&str; 5] = ["used_pct", "used_percent", "utilization", "percent", "pct"];
+
+/// Accepts the `usage` array shape, the `windows` map shape, and the flat root-object
+/// shape observed live (`{"five_hour": {"utilization": .., "resets_at": ..}, ...}`);
+/// unknown keys are ignored, never fatal (schema drifts — research E7).
 pub fn parse_windows(body: &Value) -> Vec<RateWindow> {
     let mut out = Vec::new();
     let entries: Vec<(String, Value)> =
@@ -111,6 +124,15 @@ pub fn parse_windows(body: &Value) -> Vec<RateWindow> {
                 .collect()
         } else if let Some(map) = body.get("windows").and_then(|v| v.as_object()) {
             map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        } else if let Some(map) = body.as_object() {
+            // Flat root shape: keys whose value is an object carrying usage numbers.
+            map.iter()
+                .filter(|(_, v)| {
+                    v.as_object()
+                        .is_some_and(|o| o.keys().any(|k| FIRST_F64_KEYS.contains(&k.as_str())))
+                })
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         } else {
             Vec::new()
         };
@@ -122,7 +144,7 @@ pub fn parse_windows(body: &Value) -> Vec<RateWindow> {
         } else {
             continue; // model-scoped/extra windows: ignore-with-note, never guess
         };
-        let used = first_f64(&v, &["used_pct", "used_percent", "percent", "pct"]);
+        let used = first_f64(&v, &FIRST_F64_KEYS);
         let resets = v
             .get("resets_in_sec")
             .and_then(|r| r.as_f64())
@@ -178,6 +200,29 @@ mod tests {
             {"key": "seven_day_routines", "used_pct": 30.0}
         ]});
         assert!(win(&body).is_empty());
+    }
+
+    #[test]
+    fn observed_live_flat_shape_2026_09() {
+        let body = json!({
+            "five_hour": {"utilization": 0.0, "resets_at": null, "limit_dollars": null},
+            "seven_day": {"utilization": 24.0, "resets_at": "2026-09-27T03:00:00.355117+00:00"},
+            "seven_day_oauth_apps": null,
+            "nimbus_quill": {"utilization": 0.0, "resets_at": null},
+            "extra_usage": {"is_enabled": false, "utilization": 91.28, "monthly_limit": 6000},
+            "limits": [{"kind": "session", "percent": 0}]
+        });
+        let w = parse_windows(&body);
+        assert_eq!(
+            w.len(),
+            2,
+            "only five_hour + seven_day map to known kinds: {w:?}"
+        );
+        assert_eq!(w[0].kind, WindowKind::Session);
+        assert_eq!(w[0].used_percent, Some(0.0));
+        assert_eq!(w[1].kind, WindowKind::Weekly);
+        assert_eq!(w[1].used_percent, Some(24.0));
+        assert!(w[1].resets_at.is_some());
     }
 
     #[test]
