@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-23T10:00:00+00:00",
+  "providers": [
+    {
+      "id": "claude-code",
+      "label": "Claude Code",
+      "status": {"kind": "ok"},
+      "account": "pro",
+      "windows": [
+        {"kind": "session", "label": "five_hour", "used_percent": 62.5, "resets_at": "2026-09-23T12:00:00+00:00"},
+        {"kind": "weekly", "label": "seven_day", "used_percent": 31.0}
+      ]
+    },
+    {
+      "id": "codex",
+      "label": "Codex",
+      "status": {"kind": "not_installed"}
+    },
+    {
+      "id": "zai",
+      "label": "z.ai / ZCode",
+      "status": {"kind": "ok"},
+      "account": "zcode:builtin:zai-coding-plan (global)",
+      "windows": [
+        {"kind": "session", "label": "TOKENS_LIMIT", "used_percent": 42.0, "resets_at": "2026-09-23T15:00:00+00:00"},
+        {"kind": "weekly", "label": "TOKENS_LIMIT", "used_percent": 10.0}
+      ]
+    },
+    {
+      "id": "opencode",
+      "label": "OpenCode",
+      "status": {"kind": "ok"},
+      "windows": [
+        {"kind": "session", "label": "rolling", "used_percent": 55.0},
+        {"kind": "weekly", "label": "weekly", "used_percent": 12.0}
+      ]
+    }
+  ]
+}

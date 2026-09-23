@@ -1,0 +1,1 @@
+{"providers": {"builtin:zai-coding-plan": {"options": {"apiKey": "fixture-zai-key", "baseURL": "https://api.z.ai/api/coding"}}}}

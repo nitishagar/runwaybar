@@ -1,0 +1,35 @@
+[package]
+name = "runwaybar"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+description = "Your AI runway, at a glance — a featherweight Linux usage bar for Claude Code, Codex, z.ai/ZCode and OpenCode"
+license = "MIT"
+repository = "https://github.com/nitishagar/runwaybar"
+keywords = ["cli", "tray", "ai", "usage", "linux"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "runwaybar"
+path = "src/lib.rs"
+
+[[bin]]
+name = "runwaybar"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+jiff = "0.2"
+dirs = "6"
+ureq = { version = "3", default-features = true }
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = "thin"
