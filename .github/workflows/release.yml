@@ -1,0 +1,101 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-linux
+            triple: x86_64-unknown-linux-gnu
+            container: ubuntu:22.04
+          - name: x86_64-musl-static
+            triple: x86_64-unknown-linux-musl
+            container: ""
+          - name: aarch64-musl-static
+            triple: aarch64-unknown-linux-musl
+            container: ""
+            cross: "1"
+    name: build (${{ matrix.name }})
+    container: ${{ matrix.container }}
+    steps:
+      - name: container deps
+        if: matrix.container != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl build-essential pkg-config git
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+      - name: musl toolchain (x86_64)
+        if: matrix.triple == 'x86_64-unknown-linux-musl'
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          apt-get update && apt-get install -y musl-tools
+      - name: cross toolchain (aarch64)
+        if: matrix.cross == '1'
+        run: |
+          rustup target add aarch64-unknown-linux-musl
+          cargo install cross --locked || cargo install cross --git https://github.com/cross-rs/cross --locked
+      - name: build
+        run: |
+          if [ "${{ matrix.cross }}" = "1" ]; then
+            cross build --release --target ${{ matrix.triple }}
+          else
+            cargo build --release --target ${{ matrix.triple }}
+          fi
+          BIN="target/${{ matrix.triple }}/release/runwaybar"
+          test -x "$BIN"
+          stat -c 'binary bytes: %s' "$BIN"
+          test "$(stat -c%s "$BIN")" -le 8388608
+      - name: tarball
+        id: tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          packaging/make-tarball.sh "target/${{ matrix.triple }}/release/runwaybar" "$VERSION" "${{ matrix.name }}" dist
+          echo "name=${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+      - name: deb (glibc x86_64 only)
+        if: matrix.triple == 'x86_64-unknown-linux-gnu'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          packaging/make-deb.sh "target/${{ matrix.triple }}/release/runwaybar" "$VERSION" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: checksums
+        run: |
+          cd dist
+          rm -f SHA256SUMS.txt.part
+          sha256sum *.tar.gz *.deb > SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: dist/*
+      - name: note per-artifact floors
+        run: |
+          echo "x86_64-linux: glibc >= 2.35 (built on ubuntu:22.04); musl artifacts: no glibc requirement" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=RunwayBar
+Comment=Your AI runway, at a glance
+Exec=runwaybar serve
+Icon=runwaybar
+Terminal=false
+Categories=Utility;Monitor;
+StartupWMClass=runwaybar
+X-GNOME-Autostart-enabled=true
+X-GNOME-UsesNotifications=true

@@ -1,0 +1,101 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: glibc-2.35
+            container: ubuntu:22.04
+          - name: current
+            container: ""
+    name: test (${{ matrix.name }})
+    container: ${{ matrix.container }}
+    steps:
+      - name: container deps
+        if: matrix.container != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl build-essential pkg-config git
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+      - run: cargo test --all-targets
+      - run: cargo test --doc
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89
+      - run: cargo check --all-targets
+
+  musl-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --target x86_64-unknown-linux-musl
+
+  build-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - name: binary size budget (<= 8 MiB)
+        run: |
+          BYTES=$(stat -c%s target/release/runwaybar)
+          echo "release binary: $BYTES bytes"
+          test "$BYTES" -le 8388608
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: no co-author / attribution trailers
+        run: |
+          RANGE="${{ github.event.before }}..HEAD"
+          if git rev-parse --verify -q "${{ github.event.before }}" >/dev/null; then
+            if git log "$RANGE" | grep -iE "Co-Authored-By|Generated-With|generated with"; then
+              echo "::error::attribution trailers are not allowed in this repo"; exit 1
+            fi
+          fi
+      - name: no vendor marks in product naming
+        run: |
+          ! grep -riE "claude|anthropic|codex|openai" Cargo.toml packaging/in.applair.RunwayBar.desktop site/index.html 2>/dev/null | grep -viE "claude.code|codex|opencode|claude code" | grep -E "name\s*=|<title>|^name|Package:" || true
+          # strict checks: package name, desktop Name, site title
+          ! grep -qE "^name *= *\"?(.*claude|.*codex|.*anthropic|.*openai)" Cargo.toml
+          ! grep -qiE "^Name=.*(Claude|Codex|Anthropic|OpenAI)" packaging/in.applair.RunwayBar.desktop
+          if [ -f site/index.html ]; then ! grep -qiE "<title>.*(Claude|Codex|Anthropic|OpenAI)" site/index.html; fi
+
+  readonly-credentials:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y strace
+      - run: scripts/strace-readonly-check.sh
