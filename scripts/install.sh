@@ -2,7 +2,8 @@
 # RunwayBar installer: downloads the latest release tarball, verifies its sha256,
 # installs to ~/.local/bin. Override the source with --base <dir-or-url> for testing.
 set -euo pipefail
-
+# Note: the checksum detects corruption and casual tampering only; release artifacts
+# are additionally signed with GitHub attestations (release page → attestations).
 BASE=""
 while [ $# -gt 0 ]; do
   case "$1" in

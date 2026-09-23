@@ -3,7 +3,7 @@
 //! Stage 1 ships the client half (`try_request_status`); the daemon (Stage 2) serves
 //! `{"cmd":"status"}` → snapshot and `{"cmd":"refresh"}` → ack, line-delimited JSON.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,6 +31,15 @@ pub fn runtime_dir() -> std::io::Result<PathBuf> {
             tmp.join(format!("runwaybar-{uid}"))
         }
     };
+    // Refuse pre-planted symlinks: another local user could point /tmp/runwaybar-$UID
+    // at a victim-owned directory; symlink_metadata does not follow the link.
+    if let Ok(lm) = std::fs::symlink_metadata(&dir) {
+        if lm.file_type().is_symlink() {
+            return Err(std::io::Error::other(
+                "runtime dir is a symlink; refusing to use it",
+            ));
+        }
+    }
     let created = !dir.exists();
     std::fs::create_dir_all(&dir)?;
     let meta = std::fs::metadata(&dir)?;
@@ -198,7 +207,12 @@ fn handle_connection(
     refresh: &Arc<(Mutex<bool>, Condvar)>,
 ) {
     let _ = stream.set_read_timeout(Some(CLIENT_TIMEOUT));
-    let mut reader = BufReader::new(&stream);
+    // Bound the read itself so a hostile peer cannot buffer unbounded input.
+    let Ok(cloned) = stream.try_clone() else {
+        return;
+    };
+    let mut buf = BufReader::new(cloned);
+    let mut reader = (&mut buf).take((MAX_REQUEST_BYTES + 1) as u64);
     let mut line = String::new();
     if reader.read_line(&mut line).is_err() || line.len() > MAX_REQUEST_BYTES {
         return;

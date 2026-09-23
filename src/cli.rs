@@ -154,7 +154,7 @@ pub fn render_text(snap: &Snapshot) -> String {
         out.push_str(&head);
         out.push('\n');
         if let Some(acct) = &p.account {
-            out.push_str(&format!("  account: {acct}\n"));
+            out.push_str(&format!("  account: {}\n", sanitize(acct)));
         }
         for w in &p.windows {
             let pct = w
@@ -238,6 +238,12 @@ pub fn render_waybar(snap: &Snapshot) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     serde_json::json!({"text": text, "tooltip": tooltip, "class": class}).to_string()
+}
+
+/// Remote-derived strings (plan names, labels) reach terminal output: strip
+/// control characters so a hostile response cannot inject ANSI escapes.
+fn sanitize(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 fn short_status(s: &Status) -> String {

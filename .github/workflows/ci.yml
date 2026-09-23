@@ -77,9 +77,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: no co-author / attribution trailers
+        env:
+          BEFORE: ${{ github.event.before }}
         run: |
-          RANGE="${{ github.event.before }}..HEAD"
-          if git rev-parse --verify -q "${{ github.event.before }}" >/dev/null; then
+          RANGE="$BEFORE..HEAD"
+          if git rev-parse --verify -q "$BEFORE" >/dev/null; then
             if git log "$RANGE" | grep -iE "Co-Authored-By|Generated-With|generated with"; then
               echo "::error::attribution trailers are not allowed in this repo"; exit 1
             fi

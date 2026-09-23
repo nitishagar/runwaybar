@@ -160,9 +160,22 @@ impl Endpoints {
         // Loopback-only, so it grants no capability the user does not already have
         // over their own process.
         let allow_http = std::env::var("RUNWAYBAR_TEST_ALLOW_HTTP").ok().as_deref() == Some("1");
+        // Strict loopback check on the authority component: no userinfo, so
+        // `http://127.0.0.1:1@evil/` must NOT pass and leak a token off-loopback.
+        let is_loopback = |v: &str| -> bool {
+            let Some(rest) = v.strip_prefix("http://") else {
+                return false;
+            };
+            let authority = rest.split('/').next().unwrap_or("");
+            !authority.contains('@')
+                && authority
+                    .strip_prefix("127.0.0.1:")
+                    .and_then(|port| port.parse::<u16>().ok())
+                    .is_some()
+        };
         let try_set = |slot: &mut String, var: &str| {
             if let Ok(v) = std::env::var(var) {
-                if v.starts_with("https://") || (allow_http && v.starts_with("http://127.0.0.1:")) {
+                if v.starts_with("https://") || (allow_http && is_loopback(&v)) {
                     *slot = v;
                 } else {
                     eprintln!("runwaybar: ignoring non-https {var} override");
@@ -262,6 +275,31 @@ mod tests {
         assert_eq!(
             Config::from_file(f).interval,
             Duration::from_secs(MAX_INTERVAL_SECS)
+        );
+    }
+
+    #[test]
+    fn loopback_hook_rejects_userinfo_bypass() {
+        let is_loopback = |v: &str| -> bool {
+            let Some(rest) = v.strip_prefix("http://") else {
+                return false;
+            };
+            let authority = rest.split('/').next().unwrap_or("");
+            !authority.contains('@')
+                && authority
+                    .strip_prefix("127.0.0.1:")
+                    .and_then(|port| port.parse::<u16>().ok())
+                    .is_some()
+        };
+        assert!(is_loopback("http://127.0.0.1:8080/x"));
+        assert!(
+            !is_loopback("http://127.0.0.1:1@evil.example/x"),
+            "userinfo bypass must fail"
+        );
+        assert!(!is_loopback("http://evil.example/x"));
+        assert!(
+            !is_loopback("https://127.0.0.1:8080/x"),
+            "https handled by the primary rule"
         );
     }
 
