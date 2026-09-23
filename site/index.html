@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RunwayBar — your AI runway, at a glance</title>
+  <meta name="description" content="A featherweight Linux tray bar for Claude Code, Codex, z.ai/ZCode and OpenCode usage limits. One small static binary, read-only credentials, no telemetry.">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/">▍RunwayBar</a>
+      <div class="links">
+        <a class="keep" href="#why">Why</a>
+        <a href="#providers">Providers</a>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a class="keep" href="https://github.com/nitishagar/runwaybar">GitHub</a>
+        <button id="theme-toggle" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero wrap" id="top">
+    <p class="kicker">in.applair.RunwayBar · linux · MIT</p>
+    <h1>Your AI runway, at a glance.</h1>
+    <p class="lede">
+      RunwayBar sits in your system tray and shows how much of your AI coding
+      plans you've used — session and weekly windows, reset countdowns — for the
+      tools you already have installed. One small binary. No Electron, no runtime,
+      no accounts.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#install">Install</a>
+      <a class="btn" href="https://github.com/nitishagar/runwaybar">Source</a>
+    </div>
+    <div class="bar-mock" role="img" aria-label="RunwayBar tray menu mockup showing four providers with usage meters">
+      <div class="row"><span style="width:11ch">claude-code</span><span class="track"><span class="fill" style="width:62%;background:var(--warn)"></span></span><span class="pct">62%</span></div>
+      <div class="row"><span style="width:11ch">codex</span><span class="track"><span class="fill" style="width:44%;background:var(--ok)"></span></span><span class="pct">44%</span></div>
+      <div class="row"><span style="width:11ch">z.ai / ZCode</span><span class="track"><span class="fill" style="width:42%;background:var(--ok)"></span></span><span class="pct">42%</span></div>
+      <div class="row"><span style="width:11ch">opencode</span><span class="track"><span class="fill" style="width:55%;background:var(--ok)"></span></span><span class="pct">55%</span></div>
+      <footer>session window · claude-code resets in 1h 59m · weekly 31%</footer>
+    </div>
+  </header>
+
+  <section id="why" class="wrap">
+    <h2>Why RunwayBar?</h2>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card">
+        <p class="tag">footprint</p>
+        <h3>A whole bar in ~4&nbsp;MB</h3>
+        <p>One static-friendly Rust binary with a pure-Rust D-Bus stack — no
+        Electron, no Qt, no interpreter. The daemon idles at a few MB of RSS and
+        answers <span class="mono">status</span> over a local socket in
+        milliseconds.</p>
+      </div>
+      <div class="card">
+        <p class="tag">honesty</p>
+        <h3>Read-only, or nothing</h3>
+        <p>RunwayBar reads the credential files the CLI tools already own — and
+        never writes, refreshes or rewrites them. A CI guard traces the test suite
+        and fails on any write to those paths. Unknown data renders as unknown,
+        never as 0%.</p>
+      </div>
+      <div class="card">
+        <p class="tag">coverage</p>
+        <h3>ZCode support, first-class</h3>
+        <p>Claude Code, Codex, OpenCode — and z.ai as used by Zcode, which the
+        big tools skip entirely. If a tool isn't installed, it says so and stays
+        quiet.</p>
+      </div>
+      <div class="card">
+        <p class="tag">surfaces</p>
+        <h3>Tray, waybar, or plain JSON</h3>
+        <p>An SNI tray icon for GNOME-with-appindicators, KDE, XFCE, COSMIC and
+        friends; a <span class="mono">--format waybar</span> line for tiling
+        setups; <span class="mono">--format json</span> for everything else.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="providers" class="wrap">
+    <h2>Four providers, zero configuration</h2>
+    <p class="muted" style="max-width:60ch">If the tool is signed in, RunwayBar
+    finds it. Nothing to paste, nothing to link.</p>
+    <div class="grid-4" style="margin-top:24px">
+      <div class="card"><p class="tag">claude code</p><h3>Session + weekly</h3><p>From the Claude Code CLI's local sign-in. Plan and windows with reset countdowns.</p></div>
+      <div class="card"><p class="tag">codex</p><h3>Primary + weekly</h3><p>Reads the Codex CLI's local auth. Handles account-scoped headers.</p></div>
+      <div class="card"><p class="tag">z.ai / zcode</p><h3>Tokens + credit</h3><p>Global and CN (BigModel) regions, straight from Zcode's own configuration.</p></div>
+      <div class="card"><p class="tag">opencode</p><h3>Rolling + weekly</h3><p>Zen usage from the OpenCode CLI's local key.</p></div>
+    </div>
+  </section>
+
+  <section id="features" class="wrap">
+    <h2>Limits, runway, and resets</h2>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card"><h3>Rate windows, normalised</h3><p>Rolling 5-hour sessions, weekly caps and credit lanes all become the same shape: used percent, reset instant, countdown.</p></div>
+      <div class="card"><h3>Last-good retention</h3><p>A failed poll keeps the previous numbers, clearly marked stale — it never blanks your bar or invents zeros.</p></div>
+      <div class="card"><h3>Backoff that respects the vendor</h3><p>HTTP 429s put a provider on a five-minute cooldown; the retry budget is one request, honouring server hints, capped.</p></div>
+      <div class="card"><h3>Warnings, not noise</h3><p>Desktop notifications fire on transitions — entering the warning band or a provider going dark — not on every poll.</p></div>
+    </div>
+  </section>
+
+  <section id="install" class="wrap">
+    <h2>Install</h2>
+    <div style="margin-top:24px">
+      <noscript><p class="muted">JavaScript is off — all options are shown below.</p></noscript>
+      <div class="tabs" role="tablist" aria-label="Install options">
+        <button role="tab" aria-selected="true" aria-controls="tab-deb" id="btn-deb">.deb</button>
+        <button role="tab" aria-selected="false" aria-controls="tab-tarball" id="btn-tarball">tarball</button>
+        <button role="tab" aria-selected="false" aria-controls="tab-cargo" id="btn-cargo">cargo</button>
+      </div>
+      <div class="term tab-panel" id="tab-deb" role="tabpanel" aria-labelledby="btn-deb">
+        <pre><span class="prompt">$</span> curl -fL https://github.com/nitishagar/runwaybar/releases/latest/download/runwaybar_amd64.deb -o runwaybar.deb
+<span class="prompt">$</span> sudo apt install ./runwaybar.deb</pre>
+      </div>
+      <div class="term tab-panel" id="tab-tarball" role="tabpanel" aria-labelledby="btn-tarball" hidden>
+        <pre><span class="prompt">$</span> curl -fsSL https://raw.githubusercontent.com/nitishagar/runwaybar/main/scripts/install.sh | sh</pre>
+      </div>
+      <div class="term tab-panel" id="tab-cargo" role="tabpanel" aria-labelledby="btn-cargo" hidden>
+        <pre><span class="prompt">$</span> cargo install --git https://github.com/nitishagar/runwaybar</pre>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:16px">Static musl builds cover any x86-64 or
+    aarch64 Linux; the .deb tracks glibc 2.35+. Then start it once —
+    <span class="mono">runwaybar serve</span> — or add it to autostart with
+    <span class="mono">runwaybar install</span>.</p>
+  </section>
+
+  <section id="not-built" class="wrap">
+    <h2>What we didn't build</h2>
+    <ul class="honesty" style="margin-top:24px">
+      <li><strong>No login flows.</strong> RunwayBar never asks for credentials and never intermediates sign-in — it only reads what the vendor's own CLI already stored, for a usage query against that same vendor.</li>
+      <li><strong>No telemetry.</strong> No analytics, no crash reports, no phone-home. The only network traffic is the usage queries you asked for.</li>
+      <li><strong>No bundled runtime.</strong> Not Electron, not Tauri, not a browser tab. If the tray host is missing, the CLI and socket still work.</li>
+      <li><strong>No vendor branding.</strong> Provider names describe tools; the product is its own thing.</li>
+    </ul>
+  </section>
+
+  <section id="faq" class="wrap">
+    <h2>Questions</h2>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card"><h3>Is reading my CLI's credentials safe?</h3><p>It's read-only, local, and the token only ever goes back to that vendor's own usage endpoint over TLS — never to us (there is no "us" to send it to). Files are never touched: a CI strace guard enforces it.</p></div>
+      <div class="card"><h3>Which desktops show the tray icon?</h3><p>Anything hosting StatusNotifierItem: KDE Plasma, Ubuntu's GNOME (appindicators), XFCE, Budgie, COSMIC, Waybar. Vanilla GNOME without the extension gets a clear notice; the CLI keeps working everywhere.</p></div>
+      <div class="card"><h3>How fresh is the data?</h3><p>The daemon polls every five minutes by default (configurable 1–60 min), immediately on start, and on demand via <span class="mono">runwaybar refresh</span> or the tray menu.</p></div>
+      <div class="card"><h3>What does it cost?</h3><p>Nothing, ever. MIT-licensed; the endpoints are the vendors' own usage APIs. No keys are required beyond your existing sign-ins.</p></div>
+    </div>
+  </section>
+
+  <footer class="site">
+    <div class="wrap">
+      <p><span class="mono">in.applair.RunwayBar</span> · an AppLair project ·
+      <a href="https://github.com/nitishagar/runwaybar">github.com/nitishagar/runwaybar</a> · MIT</p>
+    </div>
+  </footer>
+
+  <script src="assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+/* RunwayBar design tokens — adapted from the pi.dev palette captured in research §8.
+   Contrast verified against WCAG 2.2 AA by scripts/check-contrast.py:
+   text tokens >= 4.5:1 on their canvas in both themes (accent-rust is decorative
+   only; the light theme defines its own darker accent — research §15 fixes). */
+:root {
+  --bg-deep: #0d1116;
+  --bg-canvas: #161d27;
+  --panel-base: #212730;
+  --line-base: #6b7480;
+  --text: #ebe7e4;
+  --text-base: #d5d8db;
+  --muted-base: #9fa4ab;
+  --accent: #6a9fcc;
+  --accent-strong: #8f3222; /* decorative only — never body/text colour */
+  --thread-blue: #64798f;
+  --terminal-bg: #142433;
+  --terminal-fg: #f8f8f2;
+  --ok: #4caf50;
+  --warn: #ffb300;
+  --crit: #e53935;
+  --serif: "Plantin MT Pro", "Georgia", "Times New Roman", serif;
+  --mono: "Commit Mono", ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+  --accent-mono: "Departure Mono", "Commit Mono", ui-monospace, monospace;
+}
+
+html[data-theme="light"] {
+  --bg-deep: #d8ccc3;
+  --bg-canvas: #ebe7e4;
+  --panel-base: #f4f1ee;
+  --line-base: #6e655e;
+  --text: #252f3d;
+  --text-base: #3b4552;
+  --muted-base: #5c5752;
+  --accent: #2f5a7e; /* darkened for 4.5:1 on light canvas and deep */
+  --accent-strong: #8f3222;
+  --thread-blue: #51677f;
+  --terminal-bg: #1d2c3a;
+  --terminal-fg: #f8f8f2;
+}
