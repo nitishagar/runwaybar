@@ -208,6 +208,22 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn discovery_tolerates_unreadable_mode() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".claude")).unwrap();
+        let cred = tmp.path().join(".claude").join(".credentials.json");
+        std::fs::write(&cred, r#"{"claudeAiOauth": {"accessToken": "tok"}}"#).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&cred, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert!(
+            discover_token(tmp.path()).is_none(),
+            "unreadable file must not yield a token"
+        );
+        std::fs::set_permissions(&cred, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+
+    #[test]
     fn discovery_tolerates_garbage() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(tmp.path().join(".claude")).unwrap();

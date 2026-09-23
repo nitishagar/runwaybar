@@ -49,10 +49,10 @@ fn one_burst_then_cache_served() {
     std::env::set_var("RUNWAYBAR_TEST_ALLOW_HTTP", "1");
 
     let server = MockServer::start(vec![
-        ("/claude".into(), claude_body()),
-        ("/codex".into(), codex_body()),
-        ("/zai".into(), zai_body()),
-        ("/opencode".into(), opencode_body()),
+        ("/claude".into(), 200, claude_body()),
+        ("/codex".into(), 200, codex_body()),
+        ("/zai".into(), 200, zai_body()),
+        ("/opencode".into(), 200, opencode_body()),
     ]);
     std::env::set_var("CLAUDE_USAGE_ENDPOINT", format!("{}/claude", server.base));
     std::env::set_var("CODEX_USAGE_ENDPOINT", format!("{}/codex", server.base));

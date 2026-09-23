@@ -1,6 +1,7 @@
 //! Snapshot model — the stable JSON contract between providers, cache, IPC and renders.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -11,6 +12,11 @@ pub struct Snapshot {
     /// RFC3339 instant at which the snapshot was produced.
     pub generated_at: String,
     pub providers: Vec<ProviderSnapshot>,
+    /// provider id → epoch-ms instant before which background polling must not
+    /// re-poll (429/timeout cooldowns). Informational for CLI renders; enforced by
+    /// the daemon scheduler.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cooldowns: BTreeMap<String, i64>,
 }
 
 impl Snapshot {

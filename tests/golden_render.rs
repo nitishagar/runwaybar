@@ -29,6 +29,20 @@ fn text_render_golden_lines() {
     assert!(text.contains("Codex: not installed"), "text was:\n{text}");
     // siloing: "pro" account appears exactly once, under claude-code
     assert_eq!(text.matches("pro").count(), 1, "text was:\n{text}");
+    // negative: codex is not_installed, so no codex account may leak anywhere
+    assert!(!text.contains("plus"), "text was:\n{text}");
+    // z.ai account string appears only under its own provider line
+    assert_eq!(
+        text.matches("zcode:builtin").count(),
+        1,
+        "text was:\n{text}"
+    );
+    let json = render_json(&golden());
+    assert_eq!(
+        json.matches("\"account\"").count(),
+        2,
+        "exactly two accounts in JSON"
+    );
 }
 
 #[test]

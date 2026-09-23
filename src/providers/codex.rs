@@ -45,7 +45,13 @@ impl Provider for Codex {
         if let Some(acct) = &cred.account_id {
             headers.push(("ChatGPT-Account-Id".into(), acct.clone()));
         }
-        let resp = bounded_fetch(&ctx.config.endpoints.codex_usage, headers)?;
+        let mut resp = bounded_fetch(&ctx.config.endpoints.codex_usage, headers.clone())?;
+        if resp.status == 404 {
+            // Documented fallback path when /wham/usage is not served (research §4).
+            if let Some(fallback) = fallback_url(&ctx.config.endpoints.codex_usage) {
+                resp = bounded_fetch(&fallback, headers)?;
+            }
+        }
         if resp.status != 200 {
             return Err(crate::http::status_error(
                 resp.status,
@@ -67,6 +73,14 @@ impl Provider for Codex {
             .map(|s| s.to_string());
         Ok(PollResult { windows, account })
     }
+}
+
+/// `https://host/backend-api/wham/usage` → `https://host/api/codex/usage` (same origin).
+fn fallback_url(primary: &str) -> Option<String> {
+    let scheme_end = primary.find("://")? + 3;
+    let path_start = primary[scheme_end..].find('/')? + scheme_end;
+    let origin = &primary[..path_start];
+    Some(format!("{origin}/api/codex/usage"))
 }
 
 fn codex_home(home: &std::path::Path) -> std::path::PathBuf {
@@ -163,6 +177,19 @@ mod tests {
         let c = discover(&home).unwrap();
         assert_eq!(c.access_token.expose(), "at-1");
         assert_eq!(c.account_id.as_deref(), Some("acct-9"));
+    }
+
+    #[test]
+    fn fallback_url_same_origin_only() {
+        assert_eq!(
+            fallback_url("https://chatgpt.com/backend-api/wham/usage").as_deref(),
+            Some("https://chatgpt.com/api/codex/usage")
+        );
+        assert_eq!(
+            fallback_url("https://host.example").as_deref(),
+            None,
+            "no path → no fallback"
+        );
     }
 
     #[test]

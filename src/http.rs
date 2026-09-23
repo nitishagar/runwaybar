@@ -239,6 +239,62 @@ mod tests {
     }
 
     #[test]
+    fn retry_without_retry_after_is_immediate() {
+        // 429 with no Retry-After header, then 200: one quick retry, no 10 s wait.
+        let (url, h) = serve(vec![
+            (429, None, "{}".into()),
+            (200, None, r#"{"ok":true}"#.into()),
+        ]);
+        let start = std::time::Instant::now();
+        let r = fetch_with_retry(
+            &url,
+            &[],
+            Duration::from_secs(5),
+            Duration::from_millis(500),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "elapsed {:?}",
+            start.elapsed()
+        );
+        h.join().unwrap();
+    }
+
+    #[test]
+    fn truncated_body_is_network_error() {
+        // Content-Length lies (declares more than sent); connection closes early.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/t");
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            use std::io::{BufRead, BufReader, Write};
+            let mut reader = BufReader::new(&stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            loop {
+                let mut hl = String::new();
+                reader.read_line(&mut hl).unwrap();
+                if hl == "\r\n" || hl.is_empty() {
+                    break;
+                }
+            }
+            let resp = "HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{\"trun";
+            stream.write_all(resp.as_bytes()).unwrap();
+            drop(stream);
+        });
+        let r = fetch_json(&url, &[], Duration::from_secs(5));
+        assert!(
+            r.is_err(),
+            "truncated body must error, got {:?}",
+            r.ok().map(|x| x.body)
+        );
+        handle.join().unwrap();
+    }
+
+    #[test]
     fn status_error_maps_taxonomy() {
         assert_eq!(status_error(401, "e").class, ErrorClass::AuthExpired);
         assert_eq!(status_error(403, "e").class, ErrorClass::PermissionDenied);

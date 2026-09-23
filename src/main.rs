@@ -66,11 +66,8 @@ fn main() {
                 println!("refresh requested");
                 0
             } else {
-                match cli::run_status(StatusOpts {
-                    format: Format::Json,
-                    providers: vec![],
-                    no_fetch: false,
-                }) {
+                // No daemon: bypass cache and cooldowns exactly once (user-initiated).
+                match cli::force_refresh() {
                     Ok(_) => {
                         println!("refreshed (one-shot)");
                         0
@@ -96,7 +93,13 @@ fn smoke() -> i32 {
         );
         return 2;
     }
-    let config = std::sync::Arc::new(runwaybar::config::Config::load().unwrap_or_default());
+    let config = std::sync::Arc::new(match runwaybar::config::Config::load() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("runwaybar: {e}; continuing with defaults");
+            runwaybar::config::Config::default()
+        }
+    });
     let start = std::time::Instant::now();
     let snap = runwaybar::providers::poll_all(config);
     let elapsed = start.elapsed();

@@ -48,6 +48,7 @@ pub fn registry() -> Vec<Box<dyn Provider>> {
 
 /// Poll all enabled providers in parallel scoped threads; each provider is isolated
 /// (catch_unwind + independent result). Partial failures never affect healthy providers.
+/// Each thread returns its snapshot plus an optional cooldown deadline (429/timeout).
 pub fn poll_all(config: std::sync::Arc<Config>) -> Snapshot {
     let ctx = Ctx {
         home: crate::config::home_root(),
@@ -57,21 +58,29 @@ pub fn poll_all(config: std::sync::Arc<Config>) -> Snapshot {
         .into_iter()
         .filter(|p| *ctx.config.enabled.get(p.id()).unwrap_or(&true))
         .collect();
-    let results: Vec<ProviderSnapshot> = thread::scope(|s| {
+    let results: Vec<(ProviderSnapshot, Option<i64>)> = thread::scope(|s| {
         let handles: Vec<_> = providers
             .iter()
             .map(|p| {
                 let ctx = ctx.clone();
-                s.spawn(
-                    move || match catch_unwind(AssertUnwindSafe(|| p.poll(&ctx))) {
-                        Ok(Ok(data)) => ProviderSnapshot {
-                            id: p.id().to_string(),
-                            label: p.label().to_string(),
-                            status: crate::model::Status::Ok,
-                            account: data.account,
-                            windows: data.windows,
-                        },
+                s.spawn(move || {
+                    let cooldown = |e: &ProviderError| -> Option<i64> {
+                        e.cooldown
+                            .map(|d| crate::timefmt::now_epoch_ms() + d.as_millis() as i64)
+                    };
+                    match catch_unwind(AssertUnwindSafe(|| p.poll(&ctx))) {
+                        Ok(Ok(data)) => {
+                            let snap = ProviderSnapshot {
+                                id: p.id().to_string(),
+                                label: p.label().to_string(),
+                                status: crate::model::Status::Ok,
+                                account: data.account,
+                                windows: data.windows,
+                            };
+                            (snap, None)
+                        }
                         Ok(Err(e)) => {
+                            let cd = cooldown(&e);
                             let status = if e.class == ErrorClass::NotInstalled {
                                 crate::model::Status::NotInstalled
                             } else {
@@ -80,37 +89,50 @@ pub fn poll_all(config: std::sync::Arc<Config>) -> Snapshot {
                                     message: e.user_hint(p.tool_hint()),
                                 }
                             };
-                            ProviderSnapshot {
+                            let snap = ProviderSnapshot {
                                 id: p.id().to_string(),
                                 label: p.label().to_string(),
                                 status,
                                 account: None,
                                 windows: Vec::new(),
-                            }
+                            };
+                            (snap, cd)
                         }
-                        Err(_) => ProviderSnapshot {
-                            id: p.id().to_string(),
-                            label: p.label().to_string(),
-                            status: crate::model::Status::Error {
-                                class: ErrorClass::ParseFailure.as_str().to_string(),
-                                message: "internal provider error (panic captured)".to_string(),
-                            },
-                            account: None,
-                            windows: Vec::new(),
-                        },
-                    },
-                )
+                        Err(_) => {
+                            let snap = ProviderSnapshot {
+                                id: p.id().to_string(),
+                                label: p.label().to_string(),
+                                status: crate::model::Status::Error {
+                                    class: ErrorClass::ParseFailure.as_str().to_string(),
+                                    message: "internal provider error (panic captured)".to_string(),
+                                },
+                                account: None,
+                                windows: Vec::new(),
+                            };
+                            (snap, None)
+                        }
+                    }
+                })
             })
             .collect();
         handles
             .into_iter()
-            .map(|h| h.join().unwrap_or_else(|_| panic_provider()))
+            .map(|h| h.join().unwrap_or_else(|_| (panic_provider(), None)))
             .collect()
     });
+    let mut cooldowns = std::collections::BTreeMap::new();
+    let mut snaps = Vec::with_capacity(results.len());
+    for (snap, cd) in results {
+        if let Some(until) = cd {
+            cooldowns.insert(snap.id.clone(), until);
+        }
+        snaps.push(snap);
+    }
     Snapshot {
         schema_version: crate::model::SCHEMA_VERSION,
         generated_at: now_rfc3339(),
-        providers: results,
+        providers: snaps,
+        cooldowns,
     }
 }
 

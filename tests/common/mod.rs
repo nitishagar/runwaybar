@@ -11,8 +11,8 @@ pub struct MockServer {
 }
 
 impl MockServer {
-    /// Serves `routes` (path → body) forever on a background thread; counts requests.
-    pub fn start(routes: Vec<(String, String)>) -> Self {
+    /// Serves `routes` (path → status, body) forever on a background thread; counts requests.
+    pub fn start(routes: Vec<(String, u16, String)>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
         let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
         let requests = Arc::new(AtomicUsize::new(0));
@@ -40,13 +40,14 @@ impl MockServer {
                         }
                     }
                     rc.fetch_add(1, Ordering::SeqCst);
-                    let body = routes
+                    let (status, body) = routes
                         .iter()
-                        .find(|(p, _)| path == *p)
-                        .map(|(_, b)| b.clone())
-                        .unwrap_or_else(|| "{}".to_string());
+                        .find(|(p, _, _)| path == *p)
+                        .map(|(_, s, b)| (*s, b.clone()))
+                        .unwrap_or((200, "{}".to_string()));
+                    let reason = if status == 200 { "OK" } else { "Err" };
                     let resp = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                         body.len(),
                         body
                     );

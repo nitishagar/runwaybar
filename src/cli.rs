@@ -45,8 +45,8 @@ pub fn run_status(opts: StatusOpts) -> Result<Snapshot, ProviderError> {
         return Ok(filter(snap, &opts.providers));
     }
 
-    // 3. Fresh cache.
-    let config = crate::config::Config::load().unwrap_or_default();
+    // 3. Fresh cache. An invalid config is REPORTED (never silently swapped).
+    let config = load_config_or_report();
     if let Some(cached) = crate::store::read_last_good() {
         if crate::store::is_fresh(&cached, config.interval) {
             return Ok(filter(cached, &opts.providers));
@@ -55,16 +55,42 @@ pub fn run_status(opts: StatusOpts) -> Result<Snapshot, ProviderError> {
             return Ok(filter(mark_stale(cached), &opts.providers));
         }
     } else if opts.no_fetch {
-        return Ok(empty_snapshot());
+        return Ok(no_data_snapshot(
+            "--no-fetch set, no daemon and no cached data",
+        ));
     }
 
     // 4. Live one-shot (cache-first: only on staleness when no daemon owns the data).
-    let snap = crate::providers::poll_all(std::sync::Arc::new(config));
-    let _ = crate::store::write_last_good(&snap);
-    Ok(filter(snap, &opts.providers))
+    // A provider that errors keeps its previous (cached) windows marked stale — a
+    // failed poll must never destroy last-good data.
+    let config = std::sync::Arc::new(config);
+    let snap = crate::providers::poll_all(config.clone());
+    let merged = crate::store::merge_with_last_good(snap);
+    let _ = crate::store::write_last_good(&merged);
+    Ok(filter(merged, &opts.providers))
 }
 
-fn empty_snapshot() -> Snapshot {
+/// User-initiated refresh bypasses cache and cooldowns exactly once (invariant #6).
+pub fn force_refresh() -> Result<Snapshot, ProviderError> {
+    let config = std::sync::Arc::new(load_config_or_report());
+    let snap = crate::providers::poll_all(config);
+    let merged = crate::store::merge_with_last_good(snap);
+    let _ = crate::store::write_last_good(&merged);
+    Ok(merged)
+}
+
+fn load_config_or_report() -> crate::config::Config {
+    match crate::config::Config::load() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("runwaybar: {e}; continuing with defaults");
+            crate::config::Config::default()
+        }
+    }
+}
+
+/// Honest absence of data: stale with no windows — never fabricated not_installed/0%.
+fn no_data_snapshot(reason: &str) -> Snapshot {
     Snapshot {
         schema_version: crate::model::SCHEMA_VERSION,
         generated_at: timefmt::now_rfc3339(),
@@ -73,11 +99,15 @@ fn empty_snapshot() -> Snapshot {
             .map(|p| crate::model::ProviderSnapshot {
                 id: p.id().to_string(),
                 label: p.label().to_string(),
-                status: Status::NotInstalled,
+                status: Status::Stale {
+                    since: timefmt::now_rfc3339(),
+                    reason: Some(reason.to_string()),
+                },
                 account: None,
                 windows: vec![],
             })
             .collect(),
+        cooldowns: Default::default(),
     }
 }
 
@@ -247,6 +277,7 @@ mod tests {
                     windows: vec![],
                 },
             ],
+            cooldowns: Default::default(),
         }
     }
 
@@ -284,6 +315,7 @@ mod tests {
                 account: None,
                 windows: vec![],
             }],
+            cooldowns: Default::default(),
         });
         let v: serde_json::Value = serde_json::from_str(&w).unwrap();
         assert_eq!(v["class"], "runway-unknown");
