@@ -210,6 +210,11 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn discovery_tolerates_unreadable_mode() {
+        if running_as_root() {
+            // chmod 000 does not stop root (CI containers); the assertion would be vacuous.
+            eprintln!("skipping: running as root");
+            return;
+        }
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(tmp.path().join(".claude")).unwrap();
         let cred = tmp.path().join(".claude").join(".credentials.json");
@@ -221,6 +226,15 @@ mod tests {
             "unreadable file must not yield a token"
         );
         std::fs::set_permissions(&cred, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn running_as_root() -> bool {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::metadata("/proc/self")
+            .or_else(|_| std::fs::metadata("/"))
+            .map(|m| m.uid() == 0)
+            .unwrap_or(false)
     }
 
     #[test]
