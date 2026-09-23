@@ -4,7 +4,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::model::{Snapshot, Status, WindowKind};
+use crate::cli::{sanitize, usage_bar};
+use crate::model::{ProviderSnapshot, Snapshot, Status, WindowKind};
 use crate::state::HubState;
 use crate::timefmt;
 use ksni::menu::MenuItem;
@@ -76,19 +77,17 @@ impl Tray for RunwayTray {
             };
             items.push(MenuItem::Standard(header));
             for w in &p.windows {
-                let pct = w
-                    .used_percent
-                    .map(|v| format!("{v:.0}%"))
-                    .unwrap_or_else(|| "unknown".into());
-                let reset = w
-                    .resets_at
-                    .as_deref()
-                    .and_then(|r| timefmt::countdown(r, now_ms))
-                    .map(|c| format!(", resets in {c}"))
-                    .unwrap_or_default();
-                let overage = if w.overage { " (over limit)" } else { "" };
                 items.push(MenuItem::Standard(ksni::menu::StandardItem {
-                    label: format!("    {} {pct}{reset}{overage}", kind_str(w.kind)),
+                    label: format!("    {}", window_line(&p.status, w, now_ms, "unknown")),
+                    enabled: false,
+                    ..Default::default()
+                }));
+            }
+            // Account after the windows so the header→first-window adjacency
+            // asserted by `menu_tree_structure` is undisturbed.
+            if let Some(acct) = account_line(p) {
+                items.push(MenuItem::Standard(ksni::menu::StandardItem {
+                    label: format!("    account: {acct}"),
                     enabled: false,
                     ..Default::default()
                 }));
@@ -127,6 +126,60 @@ fn kind_str(k: WindowKind) -> &'static str {
     }
 }
 
+/// `% left` fragment, computed at render time (never stored — schema stays 1).
+fn left_str(used_percent: Option<f64>) -> String {
+    used_percent
+        .map(|v| format!(" · {:.0}% left", (100.0 - v).max(0.0)))
+        .unwrap_or_default()
+}
+
+/// Per-window badge for non-Ok providers.
+fn window_badge(status: &Status) -> String {
+    match status {
+        Status::Ok => String::new(),
+        Status::Stale { .. } => " [stale]".to_string(),
+        Status::Error { class, .. } => format!(" [error ({class})]"),
+        Status::NotInstalled => " [not installed]".to_string(),
+    }
+}
+
+/// Multiline window line shared by `menu()` and `menu_tree_text` (the two
+/// paths must not diverge again): `session 62% · 38% left · resets in 1h 5m`.
+/// `unknown_pct` is `"unknown"` (menu/tree) or `"?"` (tooltips).
+fn window_line(
+    status: &Status,
+    w: &crate::model::RateWindow,
+    now_ms: i64,
+    unknown_pct: &str,
+) -> String {
+    let pct = w
+        .used_percent
+        .map(|v| format!("{v:.0}%"))
+        .unwrap_or_else(|| unknown_pct.into());
+    let reset = w
+        .resets_at
+        .as_deref()
+        .and_then(|r| timefmt::countdown(r, now_ms))
+        .map(|c| format!(" · resets in {c}"))
+        .unwrap_or_default();
+    let overage = if w.overage { " (over limit)" } else { "" };
+    format!(
+        "{} {pct}{}{reset}{overage}{}",
+        kind_str(w.kind),
+        left_str(w.used_percent),
+        window_badge(status),
+    )
+}
+
+/// Sanitized per-provider account line, or None when absent.
+/// EDGE-5: a not-installed provider must stay quiet — no account leak.
+fn account_line(p: &ProviderSnapshot) -> Option<String> {
+    match &p.account {
+        Some(a) if !matches!(p.status, Status::NotInstalled) => Some(sanitize(a)),
+        _ => None,
+    }
+}
+
 pub fn worst_percent(snap: &Snapshot) -> Option<f64> {
     snap.providers
         .iter()
@@ -136,7 +189,10 @@ pub fn worst_percent(snap: &Snapshot) -> Option<f64> {
         })
 }
 
-/// Tooltip body: one line per provider, ≤ ~200 chars total.
+/// Tooltip body: one line per provider, ≤ ~160 chars/line, ≤ ~640 total.
+/// Measured worst case is 154 chars for a 2-window provider with bars,
+/// `% left`, account, and badges; four-provider total is ~390 chars.
+/// Window bars are fixed 10-cell `▓░`; `% left` is computed, never stored.
 pub fn tooltip_text(snap: &Snapshot) -> String {
     let now_ms = timefmt::now_epoch_ms();
     snap.providers
@@ -156,13 +212,27 @@ pub fn tooltip_text(snap: &Snapshot) -> String {
                         .and_then(|r| timefmt::countdown(r, now_ms))
                         .map(|c| format!(" ({c})"))
                         .unwrap_or_default();
-                    format!("{} {}{}", kind_str(w.kind), pct, reset)
+                    let overage = if w.overage { " (over limit)" } else { "" };
+                    format!(
+                        "{} {pct} {}{}{reset}{overage}{}",
+                        kind_str(w.kind),
+                        usage_bar(w.used_percent),
+                        left_str(w.used_percent),
+                        window_badge(&p.status),
+                    )
                 })
                 .collect();
+            let account = account_line(p)
+                .map(|a| format!(" · account: {a}"))
+                .unwrap_or_default();
             if windows.is_empty() {
-                format!("{}: {}", p.label, crate::state::provider_level(p).as_str())
+                format!(
+                    "{}: {}{account}",
+                    p.label,
+                    crate::state::provider_level(p).as_str()
+                )
             } else {
-                format!("{}: {}", p.label, windows.join(" · "))
+                format!("{}: {}{account}", p.label, windows.join(" · "))
             }
         })
         .collect::<Vec<_>>()
@@ -185,17 +255,13 @@ pub fn menu_tree_text(snap: &Snapshot) -> String {
         };
         out.push_str(&format!("{} — {status}\n", p.label));
         for w in &p.windows {
-            let pct = w
-                .used_percent
-                .map(|v| format!("{v:.0}%"))
-                .unwrap_or_else(|| "unknown".into());
-            let reset = w
-                .resets_at
-                .as_deref()
-                .and_then(|r| timefmt::countdown(r, now_ms))
-                .map(|c| format!(", resets in {c}"))
-                .unwrap_or_default();
-            out.push_str(&format!("    {} {pct}{reset}\n", kind_str(w.kind)));
+            out.push_str(&format!(
+                "    {}\n",
+                window_line(&p.status, w, now_ms, "unknown")
+            ));
+        }
+        if let Some(acct) = account_line(p) {
+            out.push_str(&format!("    account: {acct}\n"));
         }
     }
     out.push_str("---\nRefresh now\nAbout\nQuit\n");
@@ -252,5 +318,69 @@ mod tests {
         let tip = tooltip_text(&snap());
         assert!(tip.contains("Claude Code: session 62%"));
         assert!(tip.contains("Codex: not installed"));
+    }
+
+    fn rich_snap() -> Snapshot {
+        Snapshot {
+            schema_version: SCHEMA_VERSION,
+            generated_at: timefmt::now_rfc3339(),
+            providers: vec![ProviderSnapshot {
+                id: "x".into(),
+                label: "X".into(),
+                status: Status::Stale {
+                    since: timefmt::now_rfc3339(),
+                    reason: Some("poll failed".into()),
+                },
+                account: Some("Pro\u{7}\u{1b}[2J".into()),
+                windows: vec![
+                    RateWindow::new(WindowKind::Session, None, Some(62.0), None),
+                    RateWindow::new(WindowKind::Weekly, None, Some(105.0), None),
+                    RateWindow::new(WindowKind::Monthly, None, None, None),
+                ],
+            }],
+            cooldowns: Default::default(),
+        }
+    }
+
+    #[test]
+    fn menu_tree_percent_left_overage_and_stale_badge() {
+        let tree = menu_tree_text(&rich_snap());
+        assert!(tree.contains("session 62% · 38% left"), "tree:\n{tree}");
+        assert!(tree.contains("105% · 0% left"), "tree:\n{tree}");
+        assert!(tree.contains("(over limit)"), "tree:\n{tree}");
+        assert!(tree.contains("[stale]"), "tree:\n{tree}");
+        assert!(tree.contains("monthly unknown"), "tree:\n{tree}");
+    }
+
+    #[test]
+    fn menu_tree_and_tooltip_sanitize_account() {
+        let tree = menu_tree_text(&rich_snap());
+        assert!(tree.contains("account: Pro[2J"), "tree:\n{tree}");
+        assert!(!tree.contains('\u{7}'), "tree:\n{tree}");
+        let tip = tooltip_text(&rich_snap());
+        assert!(tip.contains("account: Pro[2J"), "tip:\n{tip}");
+        assert!(!tip.contains('\u{7}'), "tip:\n{tip}");
+    }
+
+    #[test]
+    fn tooltip_bars_and_left() {
+        let tip = tooltip_text(&rich_snap());
+        assert!(tip.contains("▓▓▓▓▓▓░░░░"), "tip:\n{tip}");
+        assert!(tip.contains("38% left"), "tip:\n{tip}");
+        assert!(tip.contains("? ░░░░░░░░░░"), "tip:\n{tip}");
+        assert!(tip.contains("[stale]"), "tip:\n{tip}");
+    }
+
+    #[test]
+    fn menu_tree_error_badge() {
+        let mut snap = rich_snap();
+        snap.providers[0].status = Status::Error {
+            class: "net".into(),
+            message: "down".into(),
+        };
+        let tree = menu_tree_text(&snap);
+        assert!(tree.contains("[error (net)]"), "tree:\n{tree}");
+        let tip = tooltip_text(&snap);
+        assert!(tip.contains("[error (net)]"), "tip:\n{tip}");
     }
 }

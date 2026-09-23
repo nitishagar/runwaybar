@@ -16,7 +16,6 @@
       <div class="links">
         <a class="keep" href="#why">Why</a>
         <a href="#providers">Providers</a>
-        <a href="#features">Features</a>
         <a href="#install">Install</a>
         <a class="keep" href="https://github.com/nitishagar/runwaybar">GitHub</a>
         <button id="theme-toggle" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button>
@@ -25,7 +24,7 @@
   </nav>
 
   <header class="hero wrap" id="top">
-    <p class="kicker">in.applair.RunwayBar · linux · MIT</p>
+    <p class="kicker">in.applair.RunwayBar · linux · Apache-2.0</p>
     <h1>Your AI runway, at a glance.</h1>
     <p class="lede">
       RunwayBar sits in your system tray and shows how much of your AI coding
@@ -37,12 +36,11 @@
       <a class="btn btn-primary" href="#install">Install</a>
       <a class="btn" href="https://github.com/nitishagar/runwaybar">Source</a>
     </div>
-    <div class="bar-mock" role="img" aria-label="RunwayBar tray menu mockup showing four providers with usage meters">
-      <div class="row"><span style="width:11ch">claude-code</span><span class="track"><span class="fill" style="width:62%;background:var(--warn)"></span></span><span class="pct">62%</span></div>
-      <div class="row"><span style="width:11ch">codex</span><span class="track"><span class="fill" style="width:44%;background:var(--ok)"></span></span><span class="pct">44%</span></div>
-      <div class="row"><span style="width:11ch">z.ai / ZCode</span><span class="track"><span class="fill" style="width:42%;background:var(--ok)"></span></span><span class="pct">42%</span></div>
-      <div class="row"><span style="width:11ch">opencode</span><span class="track"><span class="fill" style="width:55%;background:var(--ok)"></span></span><span class="pct">55%</span></div>
-      <footer>session window · claude-code resets in 1h 59m · weekly 31%</footer>
+    <div class="grid-4 hero-tiles" role="img" aria-label="RunwayBar provider tiles showing four providers with usage bars">
+      <div class="card tile"><p class="tag">claude-code</p><p class="tile-pct">62%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">session · 38% left · resets in 1h 59m</p></div>
+      <div class="card tile"><p class="tag">codex</p><p class="tile-pct">44%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">primary · 56% left</p></div>
+      <div class="card tile"><p class="tag">z.ai / ZCode</p><p class="tile-pct">42%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">tokens · 58% left</p></div>
+      <div class="card tile"><p class="tag">opencode</p><p class="tile-pct">55%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">rolling · 45% left</p></div>
     </div>
   </header>
 
@@ -114,13 +112,16 @@
         <button role="tab" aria-selected="false" aria-controls="tab-cargo" id="btn-cargo">cargo</button>
       </div>
       <div class="term tab-panel" id="tab-deb" role="tabpanel" aria-labelledby="btn-deb">
+        <button class="copy-btn" type="button" data-copy-for="tab-deb" hidden>Copy</button>
         <pre><span class="prompt">$</span> curl -fL https://github.com/nitishagar/runwaybar/releases/latest/download/runwaybar_amd64.deb -o runwaybar.deb
 <span class="prompt">$</span> sudo apt install ./runwaybar.deb</pre>
       </div>
       <div class="term tab-panel" id="tab-tarball" role="tabpanel" aria-labelledby="btn-tarball" hidden>
+        <button class="copy-btn" type="button" data-copy-for="tab-tarball" hidden>Copy</button>
         <pre><span class="prompt">$</span> curl -fsSL https://raw.githubusercontent.com/nitishagar/runwaybar/main/scripts/install.sh | sh</pre>
       </div>
       <div class="term tab-panel" id="tab-cargo" role="tabpanel" aria-labelledby="btn-cargo" hidden>
+        <button class="copy-btn" type="button" data-copy-for="tab-cargo" hidden>Copy</button>
         <pre><span class="prompt">$</span> cargo install --git https://github.com/nitishagar/runwaybar</pre>
       </div>
     </div>
@@ -146,14 +147,14 @@
       <div class="card"><h3>Is reading my CLI's credentials safe?</h3><p>It's read-only, local, and the token only ever goes back to that vendor's own usage endpoint over TLS — never to us (there is no "us" to send it to). Files are never touched: a CI strace guard enforces it.</p></div>
       <div class="card"><h3>Which desktops show the tray icon?</h3><p>Anything hosting StatusNotifierItem: KDE Plasma, Ubuntu's GNOME (appindicators), XFCE, Budgie, COSMIC, Waybar. Vanilla GNOME without the extension gets a clear notice; the CLI keeps working everywhere.</p></div>
       <div class="card"><h3>How fresh is the data?</h3><p>The daemon polls every five minutes by default (configurable 1–60 min), immediately on start, and on demand via <span class="mono">runwaybar refresh</span> or the tray menu.</p></div>
-      <div class="card"><h3>What does it cost?</h3><p>Nothing, ever. MIT-licensed; the endpoints are the vendors' own usage APIs. No keys are required beyond your existing sign-ins.</p></div>
+      <div class="card"><h3>What does it cost?</h3><p>Nothing, ever. Apache-2.0 licensed; the endpoints are the vendors' own usage APIs. No keys are required beyond your existing sign-ins.</p></div>
     </div>
   </section>
 
   <footer class="site">
     <div class="wrap">
       <p><span class="mono">in.applair.RunwayBar</span> · an AppLair project ·
-      <a href="https://github.com/nitishagar/runwaybar">github.com/nitishagar/runwaybar</a> · MIT</p>
+      <a href="https://github.com/nitishagar/runwaybar">github.com/nitishagar/runwaybar</a> · Apache-2.0</p>
     </div>
   </footer>
 

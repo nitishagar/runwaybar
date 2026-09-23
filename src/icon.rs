@@ -13,6 +13,10 @@ pub enum Band {
     Unknown,
 }
 
+/// Glanceable colour bands. These intentionally differ from the notification
+/// levels (Warning ≥ 80 / Critical ≥ 100 in `state.rs:126`): colour is a
+/// continuous at-a-glance signal, notify is a transitions-only policy — the
+/// colour-vs-notify split, not an accidental non-unification.
 pub fn band_for(percent: Option<f64>) -> Band {
     match percent {
         Some(v) if v >= 85.0 => Band::Red,
@@ -32,11 +36,13 @@ fn band_rgb(b: Band) -> (u8, u8, u8) {
 }
 
 /// Draw the meter. `percent`: worst used percent (clamped 0–100 for the fill);
-/// None → empty track in grey.
+/// None → empty rounded track in grey with a centred dot (no coloured fill).
 pub fn draw(percent: Option<f64>) -> ksni::Icon {
     let size = ICON_SIZE;
     let track = (22u8, 26u8, 32u8);
     let border = (70u8, 76u8, 84u8);
+    let highlight = (86u8, 90u8, 96u8);
+    let dot = (170u8, 174u8, 180u8);
     let band = band_for(percent);
     let fill = band_rgb(band);
     // Meter geometry: vertical bar centred horizontally, 4px margins + 2px border.
@@ -49,21 +55,36 @@ pub fn draw(percent: Option<f64>) -> ksni::Icon {
         Some(p) => ((p.clamp(0.0, 100.0) / 100.0) * ((y1 - y0 - 2) as f64)).round() as i32,
         None => 0,
     };
+    // Unknown dot: radius-3 filled circle at the meter centre (legible at 32px
+    // where `%` text would not be).
+    let cx = (x0 + x1) / 2;
+    let cy = (y0 + y1) / 2;
     for y in 0..size {
         for x in 0..size {
             let idx = ((y * size + x) * 4) as usize;
-            let (r, g, b, a) = if x < x0 || x > x1 || y < y0 || y > y1 {
-                // outside the meter: transparent
+            let in_meter = x >= x0 && x <= x1 && y >= y0 && y <= y1;
+            // Rounded track: the 2×2 corner blocks stay transparent.
+            let corner = in_meter && (x - x0 < 2 || x1 - x < 2) && (y - y0 < 2 || y1 - y < 2);
+            let (r, g, b, a) = if !in_meter || corner {
+                // outside the meter (or rounded off): transparent
                 (0, 0, 0, 0)
             } else if x == x0 || x == x1 || y == y0 || y == y1 {
                 (border.0, border.1, border.2, 255)
+            } else if percent.is_none() && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= 9 {
+                (dot.0, dot.1, dot.2, 255)
             } else {
                 let inner_bottom = y1 - 1;
                 let rows_from_bottom = inner_bottom - y + 1; // 1 at the lowest inner row
-                if rows_from_bottom <= fill_rows {
-                    (fill.0, fill.1, fill.2, 255)
+                let (br, bg, bb) = if rows_from_bottom <= fill_rows {
+                    fill
                 } else {
-                    (track.0, track.1, track.2, 255)
+                    track
+                };
+                // Inner highlight: one lightened row just under the top border.
+                if y == y0 + 1 && br == track.0 && bg == track.1 && bb == track.2 {
+                    (highlight.0, highlight.1, highlight.2, 255)
+                } else {
+                    (br, bg, bb, 255)
                 }
             };
             // ksni Icon data is ARGB32, network byte order: A, R, G, B per pixel.
@@ -132,5 +153,40 @@ mod tests {
         for band in [Band::Green, Band::Amber, Band::Red] {
             assert_eq!(count_band(&draw(None), band_rgb(band)), 0);
         }
+    }
+
+    fn px(icon: &ksni::Icon, x: i32, y: i32) -> [u8; 4] {
+        let idx = ((y * ICON_SIZE + x) * 4) as usize;
+        // ARGB32 network order: A, R, G, B per pixel.
+        [
+            icon.data[idx],
+            icon.data[idx + 1],
+            icon.data[idx + 2],
+            icon.data[idx + 3],
+        ]
+    }
+
+    #[test]
+    fn rounded_corners_are_transparent() {
+        let icon = draw(Some(50.0));
+        assert_eq!(px(&icon, 11, 3)[0], 0, "outer corner cut");
+        assert_eq!(px(&icon, 12, 4)[0], 0, "inner corner cut");
+        assert_eq!(px(&icon, 20, 28)[0], 0, "opposite corner cut");
+        // Adjacent edge pixels stay opaque border.
+        assert_eq!(px(&icon, 11, 5), [255, 70, 76, 84]);
+        assert_eq!(px(&icon, 13, 3), [255, 70, 76, 84]);
+    }
+
+    #[test]
+    fn inner_highlight_row() {
+        // (15,4): top inner row, track zone at 50% → lightened highlight.
+        assert_eq!(px(&draw(Some(50.0)), 15, 4), [255, 86, 90, 96]);
+    }
+
+    #[test]
+    fn unknown_dot() {
+        // Centre pixel is the grey dot, opaque; bands stay unmapped.
+        assert_eq!(px(&draw(None), 15, 15), [255, 170, 174, 180]);
+        assert_eq!(band_for(None), Band::Unknown);
     }
 }

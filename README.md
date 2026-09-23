@@ -5,7 +5,7 @@ limits for the AI coding tools you already have: **Claude Code**, **Codex**,
 **z.ai / Zcode** and **OpenCode**.
 
 One small Rust binary. No Electron, no Qt, no interpreter, no accounts, no
-telemetry — MIT licensed.
+telemetry — Apache-2.0 licensed.
 
 ```
 $ runwaybar status
@@ -133,4 +133,4 @@ custom-domain routing runbook for `runwaybar.applair.in` in
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](LICENSE).

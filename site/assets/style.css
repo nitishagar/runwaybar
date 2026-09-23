@@ -61,8 +61,8 @@
   /* hero */
   .hero { padding: 96px 0 72px; }
   .hero .kicker { font-family: var(--accent-mono); color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem; }
-  .hero h1 { margin: 12px 0 16px; max-width: 18ch; }
-  .hero p.lede { max-width: 56ch; color: var(--muted-base); font-size: 1.1rem; }
+  .hero h1 { margin: 10px 0 14px; max-width: 16ch; }
+  .hero p.lede { max-width: 54ch; color: var(--muted-base); font-size: 1.05rem; }
   .hero .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 
   .btn {
@@ -74,19 +74,13 @@
   .btn-primary { background: var(--accent); color: var(--bg-deep); border-color: var(--accent); }
   .btn-primary:hover { filter: brightness(1.1); }
 
-  /* bar mockup (fixed-size to avoid CLS) */
-  .bar-mock {
-    width: min(420px, 100%); height: 208px;
-    background: var(--panel-base);
-    border: 1px solid var(--line-base); border-radius: 12px;
-    padding: 16px; margin-top: 40px;
-    font-family: var(--mono); font-size: 0.85rem; color: var(--text);
-  }
-  .bar-mock .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-  .bar-mob-track, .bar-mock .track { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-deep); overflow: hidden; }
-  .bar-mock .fill { height: 100%; border-radius: 4px; }
-  .bar-mock .pct { width: 4ch; text-align: right; color: var(--muted-base); }
-  .bar-mock footer { margin-top: 12px; color: var(--muted-base); font-size: 0.78rem; }
+  /* hero provider tiles (▓░ bars echo the tray tooltip vocabulary) */
+  .hero-tiles { margin-top: 40px; }
+  .card .tile-pct { color: var(--text); font-family: var(--mono); font-size: 1.6rem; margin: 4px 0 2px; }
+  .card .tile-bar { font-family: var(--mono); font-size: 0.85rem; letter-spacing: 1px; margin: 2px 0 8px; }
+  .card .tile-bar .tile-fill { color: var(--accent); }
+  .card .tile-bar .tile-empty { color: var(--muted-base); }
+  .card .tile-sub { font-size: 0.85rem; }
 
   /* feature + provider cards */
   .card {
@@ -117,6 +111,8 @@
   .tab-panel pre { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
   .copy-btn { color: var(--muted-base); border: 1px solid var(--line-base); border-radius: 6px; padding: 3px 10px; font-size: 0.78rem; white-space: nowrap; }
   .copy-btn:hover { color: var(--terminal-fg); }
+  .tab-panel .copy-btn { display: block; margin: 0 0 12px auto; }
+  .tab-panel .copy-btn[hidden] { display: none; } /* author display beats UA [hidden] — restore it */
   noscript .tab-panel pre { display: block; }
 
   .honesty li {

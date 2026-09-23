@@ -154,23 +154,31 @@ pub fn render_text(snap: &Snapshot) -> String {
         out.push_str(&head);
         out.push('\n');
         if let Some(acct) = &p.account {
-            out.push_str(&format!("  account: {}\n", sanitize(acct)));
+            // EDGE-5: a not-installed provider must stay quiet — no account leak.
+            if !matches!(p.status, Status::NotInstalled) {
+                out.push_str(&format!("  account: {}\n", sanitize(acct)));
+            }
         }
         for w in &p.windows {
             let pct = w
                 .used_percent
                 .map(|p| format!("{p:.0}%"))
                 .unwrap_or_else(|| "unknown".to_string());
+            let left = w
+                .used_percent
+                .map(|v| format!(" · {:.0}% left", (100.0 - v).max(0.0)))
+                .unwrap_or_default();
             let reset = w
                 .resets_at
                 .as_deref()
                 .and_then(|r| timefmt::countdown(r, now_ms))
-                .map(|c| format!(", resets in {c}"))
+                .map(|c| format!(" · resets in {c}"))
                 .unwrap_or_default();
             let overage = if w.overage { " (over limit)" } else { "" };
             out.push_str(&format!(
-                "  {:<8} {pct}{reset}{overage}\n",
-                kind_str(w.kind)
+                "  {:<8} {pct}{left}{reset}{overage}{}\n",
+                kind_str(w.kind),
+                window_badge(&p.status),
             ));
         }
     }
@@ -220,19 +228,36 @@ pub fn render_waybar(snap: &Snapshot) -> String {
                         .used_percent
                         .map(|v| format!("{v:.0}%"))
                         .unwrap_or_else(|| "?".into());
+                    let bar = usage_bar(w.used_percent);
+                    let left = w
+                        .used_percent
+                        .map(|v| format!(" · {:.0}% left", (100.0 - v).max(0.0)))
+                        .unwrap_or_default();
                     let reset = w
                         .resets_at
                         .as_deref()
                         .and_then(|r| timefmt::countdown(r, now_ms))
                         .map(|c| format!(" ({c})"))
                         .unwrap_or_default();
-                    format!("{} {}{}", kind_str(w.kind), pct, reset)
+                    let overage = if w.overage { " (over limit)" } else { "" };
+                    format!(
+                        "{} {pct} {bar}{left}{reset}{overage}{}",
+                        kind_str(w.kind),
+                        window_badge(&p.status),
+                    )
                 })
                 .collect();
+            // EDGE-5: a not-installed provider must stay quiet — no account leak.
+            let account = match &p.account {
+                Some(a) if !matches!(p.status, Status::NotInstalled) => {
+                    format!(" · account: {}", sanitize(a))
+                }
+                _ => String::new(),
+            };
             if windows.is_empty() {
-                format!("{}: {}", p.label, short_status(&p.status))
+                format!("{}: {}{account}", p.label, short_status(&p.status))
             } else {
-                format!("{}: {}", p.label, windows.join(" · "))
+                format!("{}: {}{account}", p.label, windows.join(" · "))
             }
         })
         .collect::<Vec<_>>()
@@ -242,8 +267,33 @@ pub fn render_waybar(snap: &Snapshot) -> String {
 
 /// Remote-derived strings (plan names, labels) reach terminal output: strip
 /// control characters so a hostile response cannot inject ANSI escapes.
-fn sanitize(s: &str) -> String {
+/// `pub(crate)` so tray account lines reuse the exact rule (no drifted copy).
+pub(crate) fn sanitize(s: &str) -> String {
     s.chars().filter(|c| !c.is_control()).collect()
+}
+
+/// Fixed 10-cell text bar: full = `▓` × round(pct/10), remainder `░`.
+/// Unknown renders all-empty; overage clamps to full.
+pub(crate) fn usage_bar(used_percent: Option<f64>) -> String {
+    let full = used_percent
+        .map(|v| ((v / 10.0).round() as i32).clamp(0, 10))
+        .unwrap_or(0);
+    format!(
+        "{}{}",
+        "▓".repeat(full as usize),
+        "░".repeat((10 - full) as usize)
+    )
+}
+
+/// Per-window badge for non-Ok providers (headers already carry the status
+/// word; this keeps the badge visible on each line).
+fn window_badge(status: &Status) -> String {
+    match status {
+        Status::Ok => String::new(),
+        Status::Stale { .. } => " [stale]".to_string(),
+        Status::Error { class, .. } => format!(" [error ({class})]"),
+        Status::NotInstalled => " [not installed]".to_string(),
+    }
 }
 
 fn short_status(s: &Status) -> String {

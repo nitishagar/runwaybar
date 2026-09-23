@@ -6,6 +6,9 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- License changed from MIT to Apache-2.0 (single license); see LICENSE.
+
 ### Added
 - Provider core: Claude Code, Codex, z.ai/ZCode, OpenCode — read-only credential
   discovery, tolerant quota parsing, typed error taxonomy, per-provider isolation.

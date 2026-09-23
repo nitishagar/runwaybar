@@ -52,4 +52,9 @@ fn waybar_render_golden() {
     assert_eq!(v["text"], "62%");
     assert_eq!(v["class"], "runway-warning");
     assert!(v["tooltip"].as_str().unwrap().contains("z.ai / ZCode"));
+    let tip = v["tooltip"].as_str().unwrap();
+    assert!(tip.contains("▓"), "tooltip was:\n{tip}");
+    assert!(tip.contains("% left"), "tooltip was:\n{tip}");
+    assert!(tip.contains("account: pro"), "tooltip was:\n{tip}");
+    assert!(tip.contains("zcode:builtin"), "tooltip was:\n{tip}");
 }
