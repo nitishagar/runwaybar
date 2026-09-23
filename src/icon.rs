@@ -109,10 +109,16 @@ mod tests {
     #[test]
     fn fill_grows_monotonically() {
         let count_band = |icon: &ksni::Icon, rgb: (u8, u8, u8)| -> i64 {
-            icon.data
-                .chunks_exact(4)
-                .filter(|px| px[0] == 255 && px[1] == rgb.0 && px[2] == rgb.1 && px[3] == rgb.2)
-                .count() as i64
+            let mut n = 0i64;
+            let mut i = 0;
+            while i + 4 <= icon.data.len() {
+                let px = &icon.data[i..i + 4];
+                if px[0] == 255 && px[1] == rgb.0 && px[2] == rgb.1 && px[3] == rgb.2 {
+                    n += 1;
+                }
+                i += 4;
+            }
+            n
         };
         let low = count_band(&draw(Some(10.0)), band_rgb(Band::Green));
         let mid = count_band(&draw(Some(50.0)), band_rgb(Band::Green));
