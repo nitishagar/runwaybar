@@ -38,6 +38,16 @@ pub struct ProviderSnapshot {
 }
 
 impl ProviderSnapshot {
+    /// Short one-line status text for notifications.
+    pub fn status_text(&self) -> String {
+        match &self.status {
+            Status::Ok => "ok".to_string(),
+            Status::Stale { .. } => "data stale".to_string(),
+            Status::Error { class, .. } => format!("error ({class})"),
+            Status::NotInstalled => "not installed".to_string(),
+        }
+    }
+
     /// Worst (highest) used percent across known windows — None stays None (unknown).
     pub fn worst_used_percent(&self) -> Option<f64> {
         self.windows

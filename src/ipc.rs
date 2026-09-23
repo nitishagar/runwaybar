@@ -4,11 +4,14 @@
 //! `{"cmd":"status"}` → snapshot and `{"cmd":"refresh"}` → ack, line-delimited JSON.
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use crate::model::Snapshot;
+use crate::state::HubState;
 
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
 pub const MAX_REPLY_BYTES: usize = 4 * 1024 * 1024;
@@ -103,3 +106,94 @@ pub fn request_refresh() -> bool {
     }
     line.trim() == r#"{"ok":true}"#
 }
+
+/// Server half: line-JSON `{"cmd":"status"}` / `{"cmd":"refresh"}` on a same-user
+/// socket. Runs until `shutdown` is set; a stale socket file from a crashed daemon is
+/// unlinked before binding, so crashes cannot wedge startup.
+pub fn serve_loop(
+    state: Arc<Mutex<HubState>>,
+    refresh: Arc<(Mutex<bool>, Condvar)>,
+    shutdown: Arc<AtomicBool>,
+) {
+    let Some(path) = socket_path() else {
+        eprintln!("runwaybar: no runtime dir for IPC; `status` will use the one-shot path");
+        return;
+    };
+    let _ = std::fs::remove_file(&path); // stale socket from a crash
+    let listener = match UnixListener::bind(&path) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!(
+                "runwaybar: IPC socket bind failed ({e}); `status` will use the one-shot path"
+            );
+            return;
+        }
+    };
+    set_socket_mode_0600(&path);
+    for stream in listener.incoming() {
+        if shutdown.load(Ordering::SeqCst) {
+            break;
+        }
+        let Ok(stream) = stream else { break };
+        if ipc_connection_count() >= MAX_CONCURRENT_IPC {
+            continue; // drop excess connections
+        }
+        let state = state.clone();
+        let refresh = refresh.clone();
+        IPC_CONN.fetch_add(1, Ordering::SeqCst);
+        std::thread::spawn(move || {
+            handle_connection(stream, &state, &refresh);
+            IPC_CONN.fetch_sub(1, Ordering::SeqCst);
+        });
+    }
+    let _ = std::fs::remove_file(&path);
+}
+
+static IPC_CONN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const MAX_CONCURRENT_IPC: usize = 10;
+
+fn ipc_connection_count() -> usize {
+    IPC_CONN.load(Ordering::SeqCst)
+}
+
+fn handle_connection(
+    mut stream: UnixStream,
+    state: &Arc<Mutex<HubState>>,
+    refresh: &Arc<(Mutex<bool>, Condvar)>,
+) {
+    let _ = stream.set_read_timeout(Some(CLIENT_TIMEOUT));
+    let mut reader = BufReader::new(&stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line).is_err() || line.len() > MAX_REQUEST_BYTES {
+        return;
+    }
+    let reply = match serde_json::from_str::<serde_json::Value>(line.trim()) {
+        Ok(v) if v.get("cmd").and_then(|c| c.as_str()) == Some("status") => {
+            let snap = state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .snapshot
+                .clone();
+            serde_json::to_string(&snap).unwrap_or_else(|_| "{}".to_string())
+        }
+        Ok(v) if v.get("cmd").and_then(|c| c.as_str()) == Some("refresh") => {
+            let (lock, cvar) = &**refresh;
+            if let Ok(mut flag) = lock.lock() {
+                *flag = true;
+            }
+            cvar.notify_all();
+            r#"{"ok":true}"#.to_string()
+        }
+        _ => r#"{"error":"unknown command"}"#.to_string(),
+    };
+    let _ = writeln!(stream, "{reply}");
+}
+
+#[cfg(unix)]
+fn set_socket_mode_0600(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+}
+
+#[cfg(not(unix))]
+fn set_socket_mode_0600(_path: &std::path::Path) {}

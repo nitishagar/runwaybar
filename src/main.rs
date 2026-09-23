@@ -31,6 +31,22 @@ enum Command {
     Refresh,
     /// One-off live smoke test against real credentials (gated by RUNWAYBAR_LIVE_SMOKE=1)
     Smoke,
+    /// Run the resident daemon (tray + IPC + scheduler)
+    Serve {
+        /// Run without the tray icon (headless / no SNI host)
+        #[arg(long)]
+        no_tray: bool,
+        /// Print the menu/tooltip tree and exit (no D-Bus, no daemon)
+        #[arg(long)]
+        dry_run: bool,
+        /// Poll interval in seconds (60..=3600; default from config)
+        #[arg(long)]
+        interval: Option<u64>,
+    },
+    /// Install the user autostart entry (~/.config/autostart)
+    Install,
+    /// Remove the user autostart entry
+    Uninstall,
 }
 
 fn main() {
@@ -80,6 +96,35 @@ fn main() {
             }
         }
         Command::Smoke => smoke(),
+        Command::Serve {
+            no_tray,
+            dry_run,
+            interval,
+        } => runwaybar::daemon::serve(runwaybar::daemon::ServeOpts {
+            no_tray,
+            dry_run,
+            interval,
+        }),
+        Command::Install => match runwaybar::autostart::install() {
+            Ok(p) => {
+                println!("installed {}", p.display());
+                0
+            }
+            Err(e) => {
+                eprintln!("runwaybar: {e}");
+                1
+            }
+        },
+        Command::Uninstall => match runwaybar::autostart::uninstall() {
+            Ok(p) => {
+                println!("removed {}", p.display());
+                0
+            }
+            Err(e) => {
+                eprintln!("runwaybar: {e}");
+                1
+            }
+        },
     };
     std::process::exit(code);
 }

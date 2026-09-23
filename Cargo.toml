@@ -25,6 +25,8 @@ thiserror = "2"
 jiff = "0.2"
 dirs = "6"
 ureq = { version = "3", default-features = true }
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+notify-rust = { version = "4", default-features = false, features = ["z"] }
 toml = "0.8"
 
 [dev-dependencies]
