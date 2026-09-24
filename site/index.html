@@ -8,6 +8,7 @@
   <meta name="color-scheme" content="dark light">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <script>document.documentElement.classList.add("js")</script>
 </head>
 <body>
   <nav class="nav">
@@ -24,23 +25,39 @@
   </nav>
 
   <header class="hero wrap" id="top">
-    <p class="kicker">in.applair.RunwayBar · linux · Apache-2.0</p>
-    <h1>Your AI runway, at a glance.</h1>
-    <p class="lede">
-      RunwayBar sits in your system tray and shows how much of your AI coding
-      plans you've used — session and weekly windows, reset countdowns — for the
-      tools you already have installed. One small binary. No Electron, no runtime,
-      no accounts.
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="#install">Install</a>
-      <a class="btn" href="https://github.com/nitishagar/runwaybar">Source</a>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="kicker">in.applair.RunwayBar · linux · Apache-2.0</p>
+        <h1>Your AI runway, at a glance.</h1>
+        <p class="lede">
+          RunwayBar sits in your system tray and shows how much of your AI coding
+          plans you've used — session and weekly windows, reset countdowns — for the
+          tools you already have installed. One small binary. No Electron, no runtime,
+          no accounts.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">Install</a>
+          <a class="btn" href="https://github.com/nitishagar/runwaybar">Source</a>
+        </div>
+        <p class="proof"><span>v0.1.0</span><span>~4 MB binary</span><span>4 providers</span><span>0 telemetry</span></p>
+      </div>
+      <figure class="demo" id="demo" role="img" aria-label="Demo of runwaybar status: four providers with usage bars and reset countdowns" title="Click to replay">
+        <figcaption class="demo-bar"><span class="dots"><i></i><i></i><i></i></span><span class="demo-title">runwaybar — status</span><span class="demo-live"><i class="pulse"></i>live</span></figcaption>
+        <div class="demo-screen">
+          <p class="demo-line"><span class="prompt">$</span> <span class="demo-typed">runwaybar status</span><span class="caret"></span></p>
+          <div class="demo-row" data-pct="62"><span class="demo-name">claude-code</span><span class="demo-track"><span class="demo-fill" style="width:62%"></span></span><span class="demo-pct">62%</span><span class="demo-sub">session · resets in 1h 59m</span></div>
+          <div class="demo-row" data-pct="44"><span class="demo-name">codex</span><span class="demo-track"><span class="demo-fill" style="width:44%"></span></span><span class="demo-pct">44%</span><span class="demo-sub">primary · 56% left</span></div>
+          <div class="demo-row" data-pct="42"><span class="demo-name">z.ai</span><span class="demo-track"><span class="demo-fill" style="width:42%"></span></span><span class="demo-pct">42%</span><span class="demo-sub">tokens · 58% left</span></div>
+          <div class="demo-row" data-pct="55"><span class="demo-name">opencode</span><span class="demo-track"><span class="demo-fill" style="width:55%"></span></span><span class="demo-pct">55%</span><span class="demo-sub">rolling · 45% left</span></div>
+          <p class="demo-line demo-end"><span class="prompt">$</span> <span class="caret"></span></p>
+        </div>
+      </figure>
     </div>
     <div class="grid-4 hero-tiles" role="img" aria-label="RunwayBar provider tiles showing four providers with usage bars">
-      <div class="card tile"><p class="tag">claude-code</p><p class="tile-pct">62%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">session · 38% left · resets in 1h 59m</p></div>
-      <div class="card tile"><p class="tag">codex</p><p class="tile-pct">44%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">primary · 56% left</p></div>
-      <div class="card tile"><p class="tag">z.ai / ZCode</p><p class="tile-pct">42%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">tokens · 58% left</p></div>
-      <div class="card tile"><p class="tag">opencode</p><p class="tile-pct">55%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">rolling · 45% left</p></div>
+      <div class="card tile" data-pct="62"><p class="tag">claude-code</p><p class="tile-pct">62%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">session · 38% left · resets in 1h 59m</p></div>
+      <div class="card tile" data-pct="44"><p class="tag">codex</p><p class="tile-pct">44%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">primary · 56% left</p></div>
+      <div class="card tile" data-pct="42"><p class="tag">z.ai / ZCode</p><p class="tile-pct">42%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">tokens · 58% left</p></div>
+      <div class="card tile" data-pct="55"><p class="tag">opencode</p><p class="tile-pct">55%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">rolling · 45% left</p></div>
     </div>
   </header>
 
@@ -105,7 +122,7 @@
   <section id="install" class="wrap">
     <h2>Install</h2>
     <div style="margin-top:24px">
-      <noscript><p class="muted">JavaScript is off — all options are shown below.</p></noscript>
+      <noscript><style>.tabs{display:none}.tab-panel{margin-bottom:16px}</style><p class="muted">JavaScript is off — all options are shown below.</p></noscript>
       <div class="tabs" role="tablist" aria-label="Install options">
         <button role="tab" aria-selected="true" aria-controls="tab-deb" id="btn-deb">.deb</button>
         <button role="tab" aria-selected="false" aria-controls="tab-tarball" id="btn-tarball">tarball</button>
@@ -116,11 +133,11 @@
         <pre><span class="prompt">$</span> curl -fL https://github.com/nitishagar/runwaybar/releases/latest/download/runwaybar_amd64.deb -o runwaybar.deb
 <span class="prompt">$</span> sudo apt install ./runwaybar.deb</pre>
       </div>
-      <div class="term tab-panel" id="tab-tarball" role="tabpanel" aria-labelledby="btn-tarball" hidden>
+      <div class="term tab-panel" id="tab-tarball" role="tabpanel" aria-labelledby="btn-tarball">
         <button class="copy-btn" type="button" data-copy-for="tab-tarball" hidden>Copy</button>
         <pre><span class="prompt">$</span> curl -fsSL https://raw.githubusercontent.com/nitishagar/runwaybar/main/scripts/install.sh | sh</pre>
       </div>
-      <div class="term tab-panel" id="tab-cargo" role="tabpanel" aria-labelledby="btn-cargo" hidden>
+      <div class="term tab-panel" id="tab-cargo" role="tabpanel" aria-labelledby="btn-cargo">
         <button class="copy-btn" type="button" data-copy-for="tab-cargo" hidden>Copy</button>
         <pre><span class="prompt">$</span> cargo install --git https://github.com/nitishagar/runwaybar</pre>
       </div>
