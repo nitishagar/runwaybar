@@ -2,7 +2,7 @@
 
 **Your AI runway, at a glance** — a featherweight Linux tray bar showing usage
 limits for the AI coding tools you already have: **Claude Code**, **Codex**,
-**z.ai / Zcode** and **OpenCode**.
+**z.ai / Zcode**, **OpenCode** and **Muse Code**.
 
 One small Rust binary. No Electron, no Qt, no interpreter, no accounts, no
 telemetry — Apache-2.0 licensed.
@@ -18,6 +18,9 @@ z.ai / ZCode: ok
   weekly   10%
 OpenCode: ok
   session  55%, resets in 59m
+Muse Code: ok
+  session  18%, resets in 3h 12m
+  weekly   9%
 ```
 
 ## Highlights
@@ -96,6 +99,7 @@ claude-code = true
 codex = true
 zai = true
 opencode = true
+muse = true
 
 [notifications]
 level = "warnings"        # off | warnings | all
@@ -105,7 +109,8 @@ level = "warnings"        # off | warnings | all
 
 RunwayBar reads the same local files the CLIs own — `~/.claude/.credentials.json`,
 `~/.codex/auth.json`, `~/.zcode/v2/config.json`,
-`~/.local/share/opencode/auth.json` — and queries each vendor's own usage
+`~/.local/share/opencode/auth.json`, `~/.config/muse/auth.json` — and queries
+each vendor's own usage
 endpoint with the token that vendor issued. Tokens are wrapped in a redacted
 type that cannot render through logs, JSON or errors; they are never sent
 anywhere except back to the issuing vendor over TLS. There is no login flow, no

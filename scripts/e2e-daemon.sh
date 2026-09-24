@@ -21,6 +21,7 @@ export CLAUDE_USAGE_ENDPOINT="http://127.0.0.1:$PORT/claude"
 export CODEX_USAGE_ENDPOINT="http://127.0.0.1:$PORT/codex"
 export Z_AI_QUOTA_ENDPOINT="http://127.0.0.1:$PORT/zai"
 export OPENCODE_USAGE_ENDPOINT="http://127.0.0.1:$PORT/opencode"
+export MUSE_SUBSCRIPTION_ENDPOINT="http://127.0.0.1:$PORT/muse"
 
 BIN=./target/release/runwaybar
 "$BIN" serve --no-tray --interval 60 >/tmp/rwb-serve.log 2>&1 &
@@ -32,6 +33,7 @@ OUT=$("$BIN" status --format text)
 echo "$OUT" | grep -q "Claude Code: ok"; check "claude-code polled ok" $?
 echo "$OUT" | grep -q "z.ai / ZCode: ok"; check "zai polled ok" $?
 echo "$OUT" | grep -q "OpenCode: ok"; check "opencode polled ok" $?
+echo "$OUT" | grep -q "Muse Code: ok"; check "muse polled ok" $?
 echo "$OUT" | grep -q "session  62%"; check "session percent present" $?
 
 W1=$( { /usr/bin/time -f "%e" "$BIN" status --format json >/dev/null; } 2>&1 )

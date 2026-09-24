@@ -6,7 +6,8 @@ Architecture: amd64
 Depends: libc6 (>= 2.35)
 Maintainer: Nitish Agarwal <1592163+nitishagar@users.noreply.github.com>
 Description: Your AI runway, at a glance — a featherweight Linux usage bar
- RunwayBar shows quota/runway for Claude Code, Codex, z.ai/ZCode and OpenCode
+ RunwayBar shows quota/runway for Claude Code, Codex, z.ai/ZCode, OpenCode
+ and Muse Code
  in the system tray. Reads the tools' local credentials read-only; never
  writes, refreshes or transmits them anywhere except each vendor's own usage
  endpoint. Apache-2.0 licensed.

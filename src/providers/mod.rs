@@ -2,6 +2,7 @@
 
 pub mod claude;
 pub mod codex;
+pub mod muse;
 pub mod opencode;
 pub mod zai;
 
@@ -10,7 +11,7 @@ use std::thread;
 
 use crate::config::Config;
 use crate::error::{ErrorClass, ProviderError};
-use crate::http::fetch_bounded;
+use crate::http::{fetch_bounded, post_bounded};
 use crate::model::{ProviderSnapshot, Snapshot};
 use crate::timefmt::now_rfc3339;
 
@@ -43,6 +44,7 @@ pub fn registry() -> Vec<Box<dyn Provider>> {
         Box::new(codex::Codex),
         Box::new(zai::Zai),
         Box::new(opencode::OpenCode),
+        Box::new(muse::Muse),
     ]
 }
 
@@ -155,6 +157,22 @@ pub(crate) fn bounded_fetch(
     headers: Vec<(String, String)>,
 ) -> Result<crate::http::HttpResponse, ProviderError> {
     fetch_bounded(url.to_string(), headers, REQUEST_TIMEOUT, MAX_RETRY_WAIT)
+}
+
+/// Shared bounded POST used by providers whose usage endpoint requires a body.
+/// Same guards as [`bounded_fetch`]; only for idempotent endpoints.
+pub(crate) fn bounded_post(
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: &str,
+) -> Result<crate::http::HttpResponse, ProviderError> {
+    post_bounded(
+        url.to_string(),
+        headers,
+        body.to_string(),
+        REQUEST_TIMEOUT,
+        MAX_RETRY_WAIT,
+    )
 }
 
 // ---- tolerant JSON walking (unknown keys are ignored, never fatal — E7 discipline) ----

@@ -39,6 +39,33 @@ pub fn fetch_json(
     let resp = req
         .call()
         .map_err(|e| ProviderError::new(ErrorClass::NetworkFailure, format!("transport: {e}")))?;
+    read_capped_response(resp)
+}
+
+/// Single POST with a caller-supplied body. Same guards as [`fetch_json`];
+/// the one retry (see [`post_with_retry`]) makes POST safe only for
+/// idempotent endpoints — callers must establish that first.
+pub fn post_json(
+    url: &str,
+    headers: &[(String, String)],
+    body: &str,
+    timeout: Duration,
+) -> Result<HttpResponse, ProviderError> {
+    let a = agent(timeout);
+    let mut req = a.post(url);
+    for (k, v) in headers {
+        req = req.header(k, v);
+    }
+    let resp = req
+        .send(body)
+        .map_err(|e| ProviderError::new(ErrorClass::NetworkFailure, format!("transport: {e}")))?;
+    read_capped_response(resp)
+}
+
+/// Shared response drain: status + `Retry-After` + body capped at 8 MiB.
+fn read_capped_response(
+    resp: ureq::http::Response<ureq::Body>,
+) -> Result<HttpResponse, ProviderError> {
     let status = resp.status().as_u16();
     let retry_after = resp
         .headers()
@@ -143,6 +170,56 @@ pub fn fetch_bounded(
     }
 }
 
+/// POST twin of [`fetch_with_retry`]: on 429/5xx wait `min(Retry-After,
+/// max_retry_wait)` once, then re-POST; the second result is final. Only for
+/// idempotent endpoints (the retry re-sends the body).
+pub fn post_with_retry(
+    url: &str,
+    headers: &[(String, String)],
+    body: &str,
+    timeout: Duration,
+    max_retry_wait: Duration,
+) -> Result<HttpResponse, ProviderError> {
+    let first = post_json(url, headers, body, timeout)?;
+    if first.status != 429 && !(500..=599).contains(&first.status) {
+        return Ok(first);
+    }
+    let wait = first
+        .retry_after
+        .map(|d| d.min(max_retry_wait))
+        .unwrap_or(Duration::ZERO);
+    std::thread::sleep(wait);
+    post_json(url, headers, body, timeout)
+}
+
+/// POST twin of [`fetch_bounded`]: same detached-worker resolver-hang guard.
+pub fn post_bounded(
+    url: String,
+    headers: Vec<(String, String)>,
+    body: String,
+    timeout: Duration,
+    max_retry_wait: Duration,
+) -> Result<HttpResponse, ProviderError> {
+    let (tx, rx) = std::sync::mpsc::channel::<Result<HttpResponse, ProviderError>>();
+    std::thread::spawn(move || {
+        let _ = tx.send(post_with_retry(
+            &url,
+            &headers,
+            &body,
+            timeout,
+            max_retry_wait,
+        ));
+    });
+    let guard = timeout.saturating_mul(3) + Duration::from_secs(15);
+    match rx.recv_timeout(guard) {
+        Ok(r) => r,
+        Err(_) => Err(
+            ProviderError::new(ErrorClass::Timeout, "fetch exceeded the bounded window")
+                .with_cooldown(Duration::from_secs(300)),
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,6 +257,78 @@ mod tests {
             }
         });
         (url, handle)
+    }
+
+    /// One captured inbound request for POST-ness assertions. `serve()` is left
+    /// untouched so its callers keep byte-identical behavior; new tests use
+    /// this harness instead.
+    #[derive(Debug)]
+    struct CapturedRequest {
+        method: String,
+        path: String,
+        headers: Vec<(String, String)>,
+        body: String,
+    }
+
+    /// `serve()` twin that records method/path/headers/body per request.
+    fn serve_capturing(
+        responses: Vec<(u16, Option<u64>, String)>,
+    ) -> (
+        String,
+        std::sync::Arc<std::sync::Mutex<Vec<CapturedRequest>>>,
+        thread::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/usage");
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = captured.clone();
+        let handle = std::thread::spawn(move || {
+            use std::io::Read;
+            for (status, retry_after, body) in responses {
+                let (stream, _) = listener.accept().unwrap();
+                let mut reader = BufReader::new(&stream);
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap(); // request line
+                let mut parts = line.split_whitespace();
+                let method = parts.next().unwrap_or("").to_string();
+                let path = parts.next().unwrap_or("").to_string();
+                let mut headers = Vec::new();
+                let mut content_len = 0usize;
+                loop {
+                    let mut h = String::new();
+                    reader.read_line(&mut h).unwrap();
+                    if h == "\r\n" || h == "\n" || h.is_empty() {
+                        break;
+                    }
+                    if let Some((k, v)) = h.trim().split_once(':') {
+                        if k.trim().eq_ignore_ascii_case("content-length") {
+                            content_len = v.trim().parse().unwrap_or(0);
+                        }
+                        headers.push((k.trim().to_string(), v.trim().to_string()));
+                    }
+                }
+                // Body bytes may already sit in the BufReader — read via `reader`.
+                let mut raw = vec![0u8; content_len];
+                reader.read_exact(&mut raw).unwrap();
+                sink.lock().unwrap().push(CapturedRequest {
+                    method,
+                    path,
+                    headers,
+                    body: String::from_utf8_lossy(&raw).into_owned(),
+                });
+                let mut out = stream;
+                let ra = retry_after
+                    .map(|s| format!("Retry-After: {s}\r\n"))
+                    .unwrap_or_default();
+                let resp = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\n{ra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                out.write_all(resp.as_bytes()).unwrap();
+            }
+        });
+        (url, captured, handle)
     }
 
     #[test]
@@ -305,5 +454,177 @@ mod tests {
             status_error(503, "e").class,
             ErrorClass::ProviderUnavailable
         );
+    }
+
+    #[test]
+    fn post_sends_method_body_and_headers() {
+        let (url, captured, h) = serve_capturing(vec![(200, None, r#"{"ok":true}"#.into())]);
+        let r = post_json(
+            &url,
+            &[
+                ("x-api-version".to_string(), "1.0.0".to_string()),
+                ("Content-Type".to_string(), "application/json".to_string()),
+            ],
+            "{}",
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        assert_eq!(r.body, r#"{"ok":true}"#);
+        h.join().unwrap();
+        let reqs = captured.lock().unwrap();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].method, "POST");
+        assert_eq!(reqs[0].path, "/usage");
+        assert_eq!(reqs[0].body, "{}");
+        assert!(
+            reqs[0]
+                .headers
+                .iter()
+                .any(|(k, v)| k.eq_ignore_ascii_case("x-api-version") && v == "1.0.0"),
+            "headers were {:?}",
+            reqs[0].headers
+        );
+    }
+
+    #[test]
+    fn post_retry_resends_once_then_final() {
+        let (url, captured, h) = serve_capturing(vec![
+            (429, None, "{}".into()),
+            (200, None, r#"{"ok":true}"#.into()),
+        ]);
+        let r = post_with_retry(
+            &url,
+            &[],
+            "{}",
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        h.join().unwrap();
+        let reqs = captured.lock().unwrap();
+        assert_eq!(reqs.len(), 2);
+        assert!(reqs.iter().all(|q| q.method == "POST" && q.body == "{}"));
+    }
+
+    #[test]
+    fn post_retry_honours_retry_after_capped() {
+        // First 429 with Retry-After: 30, then 200. Cap 500ms → ≈500ms, not 30s.
+        let (url, captured, h) = serve_capturing(vec![
+            (429, Some(30), "{}".into()),
+            (200, None, r#"{"ok":true}"#.into()),
+        ]);
+        let start = std::time::Instant::now();
+        let r = post_with_retry(
+            &url,
+            &[],
+            "{}",
+            Duration::from_secs(5),
+            Duration::from_millis(500),
+        )
+        .unwrap();
+        let elapsed = start.elapsed();
+        assert_eq!(r.status, 200);
+        assert!(
+            elapsed >= Duration::from_millis(450) && elapsed < Duration::from_secs(3),
+            "elapsed {elapsed:?}"
+        );
+        h.join().unwrap();
+        assert_eq!(captured.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn post_no_retry_on_success_single_request() {
+        let (url, captured, h) = serve_capturing(vec![(200, None, "{}".into())]);
+        let r = post_with_retry(
+            &url,
+            &[],
+            "{}",
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        h.join().unwrap(); // exactly one connection or the test hangs
+        assert_eq!(captured.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn post_body_over_cap_rejected() {
+        // POST twin of body_over_cap_rejected: an over-cap response is an
+        // error no matter the method.
+        let big = "x".repeat(MAX_BODY_BYTES + 1024);
+        let (url, h) = serve(vec![(200, None, big)]);
+        let r = post_json(&url, &[], "{}", Duration::from_secs(10));
+        assert!(r.is_err());
+        h.join().unwrap();
+    }
+
+    #[test]
+    fn post_retry_503_then_success() {
+        // 503 is retryable for POST exactly as for GET.
+        let (url, captured, h) = serve_capturing(vec![
+            (503, None, "{}".into()),
+            (200, None, r#"{"ok":true}"#.into()),
+        ]);
+        let r = post_with_retry(
+            &url,
+            &[],
+            "{}",
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        h.join().unwrap();
+        let reqs = captured.lock().unwrap();
+        assert_eq!(reqs.len(), 2);
+        assert!(reqs.iter().all(|q| q.method == "POST" && q.body == "{}"));
+    }
+
+    #[test]
+    fn post_persistent_429_returns_final_without_third_request() {
+        // Two 429s, no Retry-After: no wait, no third attempt; the second
+        // response is final and the caller maps it to RateLimited.
+        let (url, captured, h) =
+            serve_capturing(vec![(429, None, "{}".into()), (429, None, "{}".into())]);
+        let start = std::time::Instant::now();
+        let r = post_with_retry(
+            &url,
+            &[],
+            "{}",
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        assert_eq!(r.status, 429);
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "elapsed {:?}",
+            start.elapsed()
+        );
+        h.join().unwrap();
+        assert_eq!(captured.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn post_bounded_success_wiring() {
+        // The bounded worker relays a successful POST end to end.
+        let (url, captured, h) = serve_capturing(vec![(200, None, r#"{"ok":true}"#.into())]);
+        let r = post_bounded(
+            url,
+            vec![],
+            "{}".to_string(),
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        assert_eq!(r.status, 200);
+        assert_eq!(r.body, r#"{"ok":true}"#);
+        h.join().unwrap();
+        let reqs = captured.lock().unwrap();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].method, "POST");
     }
 }

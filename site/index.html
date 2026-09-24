@@ -39,9 +39,9 @@
           <a class="btn btn-primary" href="#install">Install</a>
           <a class="btn" href="https://github.com/nitishagar/runwaybar">Source</a>
         </div>
-        <p class="proof"><span>v0.1.0</span><span>~4 MB binary</span><span>4 providers</span><span>0 telemetry</span></p>
+        <p class="proof"><span>v0.1.0</span><span>~4 MB binary</span><span>5 providers</span><span>0 telemetry</span></p>
       </div>
-      <figure class="demo" id="demo" role="img" aria-label="Demo of runwaybar status: four providers with usage bars and reset countdowns" title="Click to replay">
+      <figure class="demo" id="demo" role="img" aria-label="Demo of runwaybar status: five providers with usage bars and reset countdowns" title="Click to replay">
         <figcaption class="demo-bar"><span class="dots"><i></i><i></i><i></i></span><span class="demo-title">runwaybar — status</span><span class="demo-live"><i class="pulse"></i>live</span></figcaption>
         <div class="demo-screen">
           <p class="demo-line"><span class="prompt">$</span> <span class="demo-typed">runwaybar status</span><span class="caret"></span></p>
@@ -49,15 +49,17 @@
           <div class="demo-row" data-pct="44"><span class="demo-name">codex</span><span class="demo-track"><span class="demo-fill" style="width:44%"></span></span><span class="demo-pct">44%</span><span class="demo-sub">primary · 56% left</span></div>
           <div class="demo-row" data-pct="42"><span class="demo-name">z.ai</span><span class="demo-track"><span class="demo-fill" style="width:42%"></span></span><span class="demo-pct">42%</span><span class="demo-sub">tokens · 58% left</span></div>
           <div class="demo-row" data-pct="55"><span class="demo-name">opencode</span><span class="demo-track"><span class="demo-fill" style="width:55%"></span></span><span class="demo-pct">55%</span><span class="demo-sub">rolling · 45% left</span></div>
+          <div class="demo-row" data-pct="18"><span class="demo-name">muse</span><span class="demo-track"><span class="demo-fill" style="width:18%"></span></span><span class="demo-pct">18%</span><span class="demo-sub">5-hour · 82% left</span></div>
           <p class="demo-line demo-end"><span class="prompt">$</span> <span class="caret"></span></p>
         </div>
       </figure>
     </div>
-    <div class="grid-4 hero-tiles" role="img" aria-label="RunwayBar provider tiles showing four providers with usage bars">
+    <div class="grid-4 hero-tiles" role="img" aria-label="RunwayBar provider tiles showing five providers with usage bars">
       <div class="card tile" data-pct="62"><p class="tag">claude-code</p><p class="tile-pct">62%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">session · 38% left · resets in 1h 59m</p></div>
       <div class="card tile" data-pct="44"><p class="tag">codex</p><p class="tile-pct">44%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">primary · 56% left</p></div>
       <div class="card tile" data-pct="42"><p class="tag">z.ai / ZCode</p><p class="tile-pct">42%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓</span><span class="tile-empty">░░░░░░</span></p><p class="tile-sub">tokens · 58% left</p></div>
       <div class="card tile" data-pct="55"><p class="tag">opencode</p><p class="tile-pct">55%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">rolling · 45% left</p></div>
+      <div class="card tile" data-pct="18"><p class="tag">muse</p><p class="tile-pct">18%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓</span><span class="tile-empty">░░░░░░░░</span></p><p class="tile-sub">5-hour · 82% left · resets in 3h 12m</p></div>
     </div>
   </header>
 
@@ -98,7 +100,7 @@
   </section>
 
   <section id="providers" class="wrap">
-    <h2>Four providers, zero configuration</h2>
+    <h2>Five providers, zero configuration</h2>
     <p class="muted" style="max-width:60ch">If the tool is signed in, RunwayBar
     finds it. Nothing to paste, nothing to link.</p>
     <div class="grid-4" style="margin-top:24px">
@@ -106,6 +108,7 @@
       <div class="card"><p class="tag">codex</p><h3>Primary + weekly</h3><p>Reads the Codex CLI's local auth. Handles account-scoped headers.</p></div>
       <div class="card"><p class="tag">z.ai / zcode</p><h3>Tokens + credit</h3><p>Global and CN (BigModel) regions, straight from Zcode's own configuration.</p></div>
       <div class="card"><p class="tag">opencode</p><h3>Rolling + weekly</h3><p>Zen usage from the OpenCode CLI's local key.</p></div>
+      <div class="card"><p class="tag">muse</p><h3>5-hour + weekly</h3><p>Subscription quota from the Muse CLI's own OAuth sign-in.</p></div>
     </div>
   </section>
 

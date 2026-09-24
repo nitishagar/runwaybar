@@ -5,7 +5,7 @@ use runwaybar::cli::{self, Format, StatusOpts};
 #[command(
     name = "runwaybar",
     version = runwaybar::VERSION,
-    about = "Your AI runway, at a glance — usage bar for Claude Code, Codex, z.ai/ZCode and OpenCode",
+    about = "Your AI runway, at a glance — usage bar for Claude Code, Codex, z.ai/ZCode, OpenCode and Muse Code",
     disable_help_subcommand = true
 )]
 struct Cli {

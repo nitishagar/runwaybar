@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-pub const PROVIDER_IDS: [&str; 4] = ["claude-code", "codex", "zai", "opencode"];
+pub const PROVIDER_IDS: [&str; 5] = ["claude-code", "codex", "zai", "opencode", "muse"];
 pub const DEFAULT_INTERVAL_SECS: u64 = 300;
 pub const MIN_INTERVAL_SECS: u64 = 60;
 pub const MAX_INTERVAL_SECS: u64 = 3600;
@@ -44,6 +44,7 @@ pub struct Endpoints {
     pub zai_quota: String,
     pub zai_quota_cn: String,
     pub opencode_usage: String,
+    pub muse_subscription: String,
 }
 
 impl Default for Endpoints {
@@ -54,6 +55,7 @@ impl Default for Endpoints {
             zai_quota: "https://api.z.ai/api/monitor/usage/quota/limit".to_string(),
             zai_quota_cn: "https://open.bigmodel.cn/api/monitor/usage/quota/limit".to_string(),
             opencode_usage: "https://opencode.ai/zen/go/v1/usage".to_string(),
+            muse_subscription: "https://api.meta.ai/muse-code/key".to_string(),
         }
     }
 }
@@ -187,6 +189,7 @@ impl Endpoints {
         try_set(&mut self.zai_quota, "Z_AI_QUOTA_ENDPOINT");
         try_set(&mut self.zai_quota_cn, "Z_AI_QUOTA_CN_ENDPOINT");
         try_set(&mut self.opencode_usage, "OPENCODE_USAGE_ENDPOINT");
+        try_set(&mut self.muse_subscription, "MUSE_SUBSCRIPTION_ENDPOINT");
     }
 }
 
@@ -256,6 +259,18 @@ mod tests {
         assert_eq!(c.interval, Duration::from_secs(300));
         assert!(c.enabled.values().all(|v| *v));
         assert_eq!(c.notifications, NotifyLevel::Warnings);
+    }
+
+    #[test]
+    fn muse_default_endpoint_pinned() {
+        // The default subscription URL is load-bearing: it is the only
+        // production endpoint the muse provider dials. (The e2e-daemon smoke
+        // exercises the same provider through a loopback endpoint override,
+        // asserting "Muse Code: ok" — it does not see this literal.)
+        assert_eq!(
+            Endpoints::default().muse_subscription,
+            "https://api.meta.ai/muse-code/key"
+        );
     }
 
     #[test]

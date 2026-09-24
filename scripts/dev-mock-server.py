@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loopback mock serving the four providers' fixture responses (dev/e2e only).
+"""Loopback mock serving the five providers' fixture responses (dev/e2e only).
 
 Usage: scripts/dev-mock-server.py PORT
 Prints the port when ready (or uses the given one).
@@ -32,17 +32,34 @@ RESPONSES = {
         }
     },
     "/opencode": {"usage": {"rolling": {"percent": 55, "resetInSec": 3600}, "weekly": {"percent": 12}}},
+    "/muse": {
+        "is_subs_active": True,
+        "subs_tier_name": "Muse Code Test Tier",
+        "subs_usage": {
+            "window": {"used_percent": 18.0, "window_duration_mins": 300, "resets_at": 1789068250},
+            "weekly": {"used_percent": 9.0},
+        },
+    },
 }
 
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
+    def _reply(self):
         body = json.dumps(RESPONSES.get(self.path, {})).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_GET(self):
+        self._reply()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        if length:
+            self.rfile.read(length)
+        self._reply()
 
     def log_message(self, *_args):
         pass

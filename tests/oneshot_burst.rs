@@ -40,6 +40,18 @@ fn opencode_body() -> String {
         .to_string()
 }
 
+// Full happy-path fixture: active subscription + tier, window with reset,
+// weekly plain. Includes distractor secret fields the parse path must drop.
+fn muse_body() -> String {
+    r#"{"is_subs_active": true, "subs_tier_name": "Muse Code Test Tier",
+        "api_key": "fixture-muse-apikey", "user_email": "muse-user@example.com",
+        "user_full_name": "Muse Fixture User", "subs_usage": {
+        "window": {"used_percent": 18.0, "window_duration_mins": 300, "resets_at": 1789068250},
+        "weekly": {"used_percent": 9.0}
+    }}"#
+    .to_string()
+}
+
 #[test]
 fn one_burst_then_cache_served() {
     let tmp = tempfile::tempdir().unwrap();
@@ -63,6 +75,8 @@ fn one_burst_then_cache_served() {
         "Z_AI_QUOTA_ENDPOINT",
         "Z_AI_QUOTA_CN_ENDPOINT",
         "OPENCODE_USAGE_ENDPOINT",
+        "MUSE_AUTH_PATH",
+        "MUSE_SUBSCRIPTION_ENDPOINT",
     ] {
         std::env::remove_var(var);
     }
@@ -72,6 +86,7 @@ fn one_burst_then_cache_served() {
         ("/codex".into(), 200, codex_body()),
         ("/zai".into(), 200, zai_body()),
         ("/opencode".into(), 200, opencode_body()),
+        ("/muse".into(), 200, muse_body()),
     ]);
     std::env::set_var("CLAUDE_USAGE_ENDPOINT", format!("{}/claude", server.base));
     std::env::set_var("CODEX_USAGE_ENDPOINT", format!("{}/codex", server.base));
@@ -80,15 +95,19 @@ fn one_burst_then_cache_served() {
         "OPENCODE_USAGE_ENDPOINT",
         format!("{}/opencode", server.base),
     );
+    std::env::set_var(
+        "MUSE_SUBSCRIPTION_ENDPOINT",
+        format!("{}/muse", server.base),
+    );
 
-    // First call: live burst (4 providers → 4 requests), cache written.
+    // First call: live burst (5 providers → 5 requests), cache written.
     let snap1 = run_status(StatusOpts {
         format: Format::Json,
         providers: vec![],
         no_fetch: false,
     })
     .expect("first status");
-    assert_eq!(snap1.providers.len(), 4, "all four providers should appear");
+    assert_eq!(snap1.providers.len(), 5, "all five providers should appear");
     let claude = snap1.provider("claude-code").unwrap();
     assert!(
         matches!(claude.status, Status::Ok),
@@ -104,9 +123,35 @@ fn one_burst_then_cache_served() {
     let zai = snap1.provider("zai").unwrap();
     assert!(matches!(zai.status, Status::Ok), "zai status was {zai:?}");
     assert_eq!(zai.worst_used_percent(), Some(42.0));
+    let muse = snap1.provider("muse").unwrap();
+    assert!(
+        matches!(muse.status, Status::Ok),
+        "muse status was {muse:?}"
+    );
+    assert_eq!(muse.worst_used_percent(), Some(18.0));
+    assert_eq!(muse.account.as_deref(), Some("Muse Code Test Tier"));
+    // The muse poll is exactly one POST to /muse carrying {} and the pinned
+    // API version, with the OAuth token as a Bearer credential.
+    let muse_reqs: Vec<_> = server
+        .requests_snapshot()
+        .into_iter()
+        .filter(|r| r.path == "/muse")
+        .collect();
+    assert_eq!(muse_reqs.len(), 1, "expected one muse poll");
+    let req = &muse_reqs[0];
+    assert_eq!(req.method, "POST");
+    assert_eq!(req.body, "{}");
+    let header = |name: &str| {
+        req.headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    };
+    assert_eq!(header("x-api-version"), Some("1.0.0"));
+    assert_eq!(header("authorization"), Some("Bearer fixture-muse-token"));
     let after_first = server.count();
     assert!(
-        after_first <= 4,
+        after_first <= 5,
         "first burst should poll each provider at most once, got {after_first}"
     );
 
@@ -136,6 +181,10 @@ fn one_burst_then_cache_served() {
         "fixture-codex-token",
         "fixture-zai-key",
         "fixture-opencode-key",
+        "fixture-muse-token",
+        "fixture-muse-apikey",
+        "muse-user@example.com",
+        "Muse Fixture User",
         "fixture-refresh",
     ] {
         assert!(

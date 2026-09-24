@@ -34,6 +34,8 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
         "Z_AI_QUOTA_ENDPOINT",
         "Z_AI_QUOTA_CN_ENDPOINT",
         "OPENCODE_USAGE_ENDPOINT",
+        "MUSE_AUTH_PATH",
+        "MUSE_SUBSCRIPTION_ENDPOINT",
     ] {
         std::env::remove_var(var);
     }
@@ -44,6 +46,7 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
         ("/codex".into(), 200, codex_body()),
         ("/zai".into(), 200, zai_body()),
         ("/opencode".into(), 200, opencode_body()),
+        ("/muse".into(), 200, muse_body()),
     ]);
     std::env::set_var("CLAUDE_USAGE_ENDPOINT", format!("{}/claude", server.base));
     std::env::set_var("CODEX_USAGE_ENDPOINT", format!("{}/codex", server.base));
@@ -51,6 +54,10 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
     std::env::set_var(
         "OPENCODE_USAGE_ENDPOINT",
         format!("{}/opencode", server.base),
+    );
+    std::env::set_var(
+        "MUSE_SUBSCRIPTION_ENDPOINT",
+        format!("{}/muse", server.base),
     );
 
     // Poll 1: claude errors (after its one bounded retry), others succeed.
@@ -66,7 +73,7 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
         "claude should surface the 500, got {:?}",
         claude.status
     );
-    for id in ["codex", "zai", "opencode"] {
+    for id in ["codex", "zai", "opencode", "muse"] {
         let p = snap1.provider(id).unwrap();
         assert!(
             matches!(p.status, Status::Ok),
@@ -110,10 +117,10 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
     )
     .unwrap();
 
-    // Request count: 4 providers + claude's single bounded retry.
+    // Request count: 5 providers + claude's single bounded retry.
     assert!(
-        server.count() >= 5,
-        "expected 5+ requests, got {}",
+        server.count() >= 6,
+        "expected 6+ requests, got {}",
         server.count()
     );
     let snap2 = run_status(StatusOpts {
@@ -140,7 +147,7 @@ fn one_failing_provider_does_not_blank_healthy_ones() {
         "previous windows must survive"
     );
     // Healthy providers remain ok in the merged snapshot too.
-    for id in ["codex", "zai", "opencode"] {
+    for id in ["codex", "zai", "opencode", "muse"] {
         assert!(
             matches!(snap2.provider(id).unwrap().status, Status::Ok),
             "{id} regressed"
@@ -156,4 +163,9 @@ fn zai_body() -> String {
 }
 fn opencode_body() -> String {
     r#"{"usage": {"rolling": {"percent": 55}}}"#.into()
+}
+// Minimal shape: no active flag, no tier, no resets — anonymous status must
+// still enrich the snapshot rather than fail the whole burst.
+fn muse_body() -> String {
+    r#"{"subs_usage": {"window": {"used_percent": 22.0}}}"#.into()
 }

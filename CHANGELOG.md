@@ -12,6 +12,8 @@ versioning follows [SemVer](https://semver.org/).
 ### Added
 - Provider core: Claude Code, Codex, z.ai/ZCode, OpenCode — read-only credential
   discovery, tolerant quota parsing, typed error taxonomy, per-provider isolation.
+- Muse Code provider: 5-hour + weekly subscription quota from the CLI's own
+  OAuth login (`~/.config/muse/auth.json`, `MUSE_AUTH_PATH` override).
 - `runwaybar status` CLI (json / text / waybar formats), cache-first one-shot polling.
 - `runwaybar serve` daemon: SNI tray icon with per-provider menu and tooltips,
   same-user Unix-socket IPC, cooldown-honouring scheduler, transition notifications.
