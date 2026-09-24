@@ -24,7 +24,8 @@
     </div>
   </nav>
 
-  <header class="hero wrap" id="top">
+  <header class="hero" id="top">
+    <div class="wrap">
     <div class="hero-grid">
       <div class="hero-copy">
         <p class="kicker">in.applair.RunwayBar · linux · Apache-2.0</p>
@@ -61,9 +62,11 @@
       <div class="card tile" data-pct="55"><p class="tag">opencode</p><p class="tile-pct">55%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓▓▓▓▓</span><span class="tile-empty">░░░░</span></p><p class="tile-sub">rolling · 45% left</p></div>
       <div class="card tile" data-pct="18"><p class="tag">muse</p><p class="tile-pct">18%</p><p class="tile-bar" aria-hidden="true"><span class="tile-fill">▓▓</span><span class="tile-empty">░░░░░░░░</span></p><p class="tile-sub">5-hour · 82% left · resets in 3h 12m</p></div>
     </div>
+    </div>
   </header>
 
-  <section id="why" class="wrap">
+  <section id="why">
+    <div class="wrap">
     <h2>Why RunwayBar?</h2>
     <div class="grid-2" style="margin-top:24px">
       <div class="card">
@@ -97,9 +100,11 @@
         setups; <span class="mono">--format json</span> for everything else.</p>
       </div>
     </div>
+    </div>
   </section>
 
-  <section id="providers" class="wrap">
+  <section id="providers">
+    <div class="wrap">
     <h2>Five providers, zero configuration</h2>
     <p class="muted" style="max-width:60ch">If the tool is signed in, RunwayBar
     finds it. Nothing to paste, nothing to link.</p>
@@ -110,9 +115,11 @@
       <div class="card"><p class="tag">opencode</p><h3>Rolling + weekly</h3><p>Zen usage from the OpenCode CLI's local key.</p></div>
       <div class="card"><p class="tag">muse</p><h3>5-hour + weekly</h3><p>Subscription quota from the Muse CLI's own OAuth sign-in.</p></div>
     </div>
+    </div>
   </section>
 
-  <section id="features" class="wrap">
+  <section id="features">
+    <div class="wrap">
     <h2>Limits, runway, and resets</h2>
     <div class="grid-2" style="margin-top:24px">
       <div class="card"><h3>Rate windows, normalised</h3><p>Rolling 5-hour sessions, weekly caps and credit lanes all become the same shape: used percent, reset instant, countdown.</p></div>
@@ -120,9 +127,11 @@
       <div class="card"><h3>Backoff that respects the vendor</h3><p>HTTP 429s put a provider on a five-minute cooldown; the retry budget is one request, honouring server hints, capped.</p></div>
       <div class="card"><h3>Warnings, not noise</h3><p>Desktop notifications fire on transitions — entering the warning band or a provider going dark — not on every poll.</p></div>
     </div>
+    </div>
   </section>
 
-  <section id="install" class="wrap">
+  <section id="install">
+    <div class="wrap">
     <h2>Install</h2>
     <div style="margin-top:24px">
       <noscript><style>.tabs{display:none}.tab-panel{margin-bottom:16px}</style><p class="muted">JavaScript is off — all options are shown below.</p></noscript>
@@ -149,9 +158,11 @@
     aarch64 Linux; the .deb tracks glibc 2.35+. Then start it once —
     <span class="mono">runwaybar serve</span> — or add it to autostart with
     <span class="mono">runwaybar install</span>.</p>
+    </div>
   </section>
 
-  <section id="not-built" class="wrap">
+  <section id="not-built">
+    <div class="wrap">
     <h2>What we didn't build</h2>
     <ul class="honesty" style="margin-top:24px">
       <li><strong>No login flows.</strong> RunwayBar never asks for credentials and never intermediates sign-in — it only reads what the vendor's own CLI already stored, for a usage query against that same vendor.</li>
@@ -159,15 +170,18 @@
       <li><strong>No bundled runtime.</strong> Not Electron, not Tauri, not a browser tab. If the tray host is missing, the CLI and socket still work.</li>
       <li><strong>No vendor branding.</strong> Provider names describe tools; the product is its own thing.</li>
     </ul>
+    </div>
   </section>
 
-  <section id="faq" class="wrap">
+  <section id="faq">
+    <div class="wrap">
     <h2>Questions</h2>
     <div class="grid-2" style="margin-top:24px">
       <div class="card"><h3>Is reading my CLI's credentials safe?</h3><p>It's read-only, local, and the token only ever goes back to that vendor's own usage endpoint over TLS — never to us (there is no "us" to send it to). Files are never touched: a CI strace guard enforces it.</p></div>
       <div class="card"><h3>Which desktops show the tray icon?</h3><p>Anything hosting StatusNotifierItem: KDE Plasma, Ubuntu's GNOME (appindicators), XFCE, Budgie, COSMIC, Waybar. Vanilla GNOME without the extension gets a clear notice; the CLI keeps working everywhere.</p></div>
       <div class="card"><h3>How fresh is the data?</h3><p>The daemon polls every five minutes by default (configurable 1–60 min), immediately on start, and on demand via <span class="mono">runwaybar refresh</span> or the tray menu.</p></div>
       <div class="card"><h3>What does it cost?</h3><p>Nothing, ever. Apache-2.0 licensed; the endpoints are the vendors' own usage APIs. No keys are required beyond your existing sign-ins.</p></div>
+    </div>
     </div>
   </section>
 
